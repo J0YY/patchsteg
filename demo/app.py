@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from core.cdf_steganography import CDFPatchSteg
 from core.defense import UniversalPatchStegGuard
 from core.metrics import bit_accuracy, compute_psnr
+from core.pca_directions import PCADirections, PCAPatchSteg
 from core.steganography import PatchSteg
 from core.vae import StegoVAE
 
@@ -737,7 +738,8 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
 
     bits = PatchSteg.text_to_bits(hidden_instruction)
     use_cdf = "CDF" in attack_method
-    reps = (3 if use_repetition else 1) if not use_cdf else 1  # CDF uses raw encoding
+    use_pca = "PCA" in attack_method
+    reps = (3 if use_repetition else 1) if not (use_cdf or use_pca) else 1
     carrier_count = len(bits) * reps
     max_carriers = vae.latent_size ** 2
     if carrier_count > max_carriers:
@@ -752,6 +754,15 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
     if use_cdf:
         steg = CDFPatchSteg(seed=int(seed), sigma=1.0)
         carriers, _ = steg.select_carriers_by_stability(vae, base_image, n_carriers=carrier_count)
+        used_carriers = carriers[:carrier_count]
+        latent_stego = steg.encode_message(latent_clean, used_carriers, bits)
+    elif use_pca:
+        pca_dir = PCADirections(n_components=4)
+        pca_dir.fit_global(vae, [base_image])
+        steg = PCAPatchSteg(pca_dir, seed=int(seed), epsilon=float(epsilon), component=0)
+        carriers, _ = steg.select_carriers_by_stability(
+            vae, base_image, n_carriers=carrier_count, test_eps=float(epsilon)
+        )
         used_carriers = carriers[:carrier_count]
         latent_stego = steg.encode_message(latent_clean, used_carriers, bits)
     else:
@@ -944,10 +955,14 @@ def build_app():
                         lines=2,
                     )
                     attack_method = gr.Radio(
-                        choices=["Original PatchSteg (±ε)", "CDF-PatchSteg (SOTA, undetectable)"],
-                        value="Original PatchSteg (±ε)",
+                        choices=[
+                            "PatchSteg (±ε)  [this work]",
+                            "PCA-PatchSteg  [Rolinek et al., CVPR 2019]",
+                            "CDF-PatchSteg  [Yang et al., CVPR 2024]",
+                        ],
+                        value="PatchSteg (±ε)  [this work]",
                         label="Attack method",
-                        info="CDF-PatchSteg preserves the latent distribution — theoretically undetectable.",
+                        info="PCA uses natural latent directions; CDF is distribution-preserving (theoretically undetectable).",
                     )
                     epsilon = gr.Slider(
                         1.0,

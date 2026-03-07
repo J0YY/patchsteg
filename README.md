@@ -1,8 +1,33 @@
-# PatchSteg: Covert Steganographic Communication Between Vision Models via Latent Space Perturbation
+# PatchSteg: Defeating SOTA Steganographic Attacks in Latent Space
 
-**Training-free steganographic framework for hiding binary messages in images using pretrained VAE latent spaces.**
+**Can a defender reliably neutralize covert image channels between AI agents — even when the attack is theoretically undetectable?**
 
-PatchSteg enables two AI agents sharing a secret key to embed and recover binary messages in images with negligible visual artifacts. No model fine-tuning, no auxiliary networks, no adversarial training — just directional perturbations in the latent space of a pretrained autoencoder.
+PatchSteg studies this question by implementing a progression of increasingly strong steganographic attacks (each grounded in a published paper) and building defenses against them. All attacks are training-free, operating directly on the latent space of a pretrained Stable Diffusion VAE. No fine-tuning, no auxiliary networks.
+
+---
+
+## Attacks Implemented
+
+Each attack encodes a binary message into an image so that two agents sharing a secret seed can communicate covertly. Attacks are ordered by detectability (easiest to hardest to defend):
+
+| Attack | Paper | Method | Detection AUC | Status |
+|--------|-------|--------|---------------|--------|
+| **PatchSteg (±ε)** | *This work* | Add ±ε to carrier latent values along a secret direction vector | 0.93 (detectable) | In demo |
+| **PCA-PatchSteg** | [Rolinek et al., CVPR 2019](https://arxiv.org/abs/1812.03463) — *VAEs Pursue PCA Directions (by Accident)* | Perturb along principal directions of the latent distribution — follows natural variation, harder to flag | ~0.6–0.8 | In demo |
+| **CDF-PatchSteg** | [Yang et al., CVPR 2024](https://arxiv.org/abs/2404.04956) — *Gaussian Shading: Provable Performance-Lossless Image Watermarking for Diffusion Models* | Replace carrier values with samples from upper/lower half of N(μ,σ) via inverse CDF — distribution-preserving, theoretically undetectable | ~0.50 (chance) | In demo |
+
+**Closest prior work (not yet implemented):**
+- [PSyDUCK, Jiang et al., arXiv 2501.19172](https://arxiv.org/abs/2501.19172) — first training-free latent diffusion steganography (99.9% accuracy) but requires *generation-time* control over PRNG seeds. PatchSteg attacks work **post-hoc** on existing images.
+- [AGM, arXiv 2510.07219](https://arxiv.org/abs/2510.07219) — explains why ±ε is detectable: VAE decoder amplifies latent perturbations into pixel artifacts. Directly motivates CDF-PatchSteg.
+
+---
+
+## Defenses Implemented
+
+| Defense | Approach | Defeats |
+|---------|----------|---------|
+| **UniversalPatchStegGuard** | Latent anomaly scoring + spatial smoothing (no key needed) | PatchSteg (±ε) |
+| **CertifiedPurifier** | Stability-guided resampling + channel noise — certified bit accuracy bound | PatchSteg (±ε), PCA-PatchSteg, CDF-PatchSteg |
 
 ---
 
