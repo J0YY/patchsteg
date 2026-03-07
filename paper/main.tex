@@ -672,6 +672,47 @@ Combined              & 81.2 & 20.1 & 0.69 \\
 
 The defense reduces accuracy by 6--17\% but incurs a large PSNR penalty (17--24\,dB) because it modifies all four latent channels at each purified position while CDF only modifies one. More critically, the stability map is \emph{seed-dependent}: the attacker's seed determines which positions appear most stable, so the defender's independently computed map does not perfectly overlap the carrier set. This \emph{seed mismatch} prevents the theoretical 50\% floor, revealing a fundamental asymmetry: attackers can shift their carrier set by changing their seed. Eliminating this---by averaging stability over many seeds or using image-adaptive purification---remains an open problem.
 
+\subsection{QuantileShuffleSanitizer: Provable Defense Against CDF-PatchSteg}
+\label{sec:quantile_sanitizer}
+
+CDF-PatchSteg encodes each bit by placing a carrier latent value in the upper or lower Gaussian half of $\mathcal{N}(\mu_c, \sigma_c^2)$. Decoding checks which half the re-encoded value falls in. All sanitizers tested so far leave CDF accuracy above 68\%; none has a theoretical guarantee.
+
+\textbf{Construction.} For each channel $c$ independently, estimate $\mu_c$ from the latent tensor. Then for each spatial position $(r,i)$, with probability $p$, reflect its value around $\mu_c$: $v \leftarrow 2\mu_c - v$.
+
+\textbf{Distribution preservation.} Reflection around the mean is an involution that maps $\mathcal{N}(\mu_c, \sigma_c^2)$ to itself: if $v \sim \mathcal{N}(\mu, \sigma^2)$ then $2\mu - v \sim \mathcal{N}(\mu, \sigma^2)$. The per-channel marginal is preserved exactly.
+
+\textbf{Theoretical guarantee.} Each CDF carrier's half-membership is independently flipped with probability $p$. At $p = 0.5$, each bit is destroyed independently, so bit accuracy $\to 50\%$ (chance level) regardless of carrier positions, seed, or message content. This is an unconditional guarantee requiring no knowledge of the steganographic key.
+
+\begin{table}[h]
+\centering
+\caption{QuantileShuffleSanitizer vs.\ all four SOTA attacks ($n{=}4$ images, $K{=}20$ carriers). At $p{=}0.5$, all attacks are reduced to chance-level accuracy (51--55\%). The PSNR cost (10--12\,dB) reflects the absence of carrier knowledge: 50\% of all latent positions are modified, most of which are non-carriers.}
+\label{tab:quantile_sanitizer}
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+ & \multicolumn{2}{c}{PatchSteg} & \multicolumn{2}{c}{PCA-PS} & \multicolumn{2}{c}{PSyDUCK} & \multicolumn{2}{c}{CDF-PS} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+$p$ & Acc & PSNR & Acc & PSNR & Acc & PSNR & Acc & PSNR \\
+\midrule
+Baseline        & 100\% & --- & 100\% & --- & 100\% & --- & 93\% & --- \\
+0.1 & 94\% & 16.4 & 95\% & 14.9 & 90\% & 15.6 & 89\% & 20.7 \\
+0.2 & 88\% & 14.1 & 89\% & 13.5 & 84\% & 13.6 & 74\% & 16.6 \\
+0.3 & 75\% & 13.0 & 73\% & 12.1 & 79\% & 12.3 & 69\% & 14.5 \\
+\textbf{0.5} & \textbf{55\%} & \textbf{11.1} & \textbf{53\%} & \textbf{10.6} & \textbf{51\%} & \textbf{10.7} & \textbf{53\%} & \textbf{11.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Result.} At $p{=}0.5$, CDF-PatchSteg drops from 93\% to 53\% accuracy---statistically indistinguishable from 50\% chance (Table~\ref{tab:quantile_sanitizer}, Figure~\ref{fig:quantile_sanitizer}). The same $p$ also defeats all $\pm\varepsilon$ attacks (51--55\%), making this a \emph{universal} sanitizer across all four attack families. The PSNR cost at $p{=}0.5$ is 10--12\,dB, which is the direct consequence of modifying 50\% of all latent positions without knowing carrier locations.
+
+\textbf{Comparison with prior sanitizers.} CertifiedPurifier (Section~\ref{sec:cath_defenses}) targets stability-selected positions but fails to reach 50\% due to seed mismatch. Latent Smooth $\sigma{=}1.0$ achieves only 68--83\% accuracy on CDF with better PSNR (${\sim}25$\,dB). QuantileShuffleSanitizer is the first defense to provably reduce CDF accuracy to chance, at the cost of image fidelity. The open engineering problem is combining distribution-preserving reflection with carrier-location estimation to recover PSNR without sacrificing the guarantee.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/quantile_sanitizer_results.png}
+\caption{QuantileShuffleSanitizer: bit accuracy and PSNR across flip probability $p$ for all four attacks. At $p{=}0.5$, all attacks converge to chance-level accuracy (51--55\%). Lower $p$ trades some accuracy reduction for better image quality.}
+\label{fig:quantile_sanitizer}
+\end{figure}
+
 \subsection{Teammate Defense Evaluation: Sanitizers and Anomaly Detectors}
 \label{sec:cath_defenses}
 
