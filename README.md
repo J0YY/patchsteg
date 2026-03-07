@@ -13,6 +13,7 @@ Each attack encodes a binary message into an image so that two agents sharing a 
 | Attack | Paper | Method | Detection AUC | Status |
 |--------|-------|--------|---------------|--------|
 | **PatchSteg (±ε)** | *This work* | Add ±ε to carrier latent values along a secret direction vector | 0.93 (detectable) | In demo |
+| **CapacityPatchSteg** | *This work* | Compression + framed payloads + multilevel symbols + channel equalization for longer text/paragraphs | Not yet benchmarked | Experimental |
 | **PCA-PatchSteg** | [Rolinek et al., CVPR 2019](https://arxiv.org/abs/1812.03463) — *VAEs Pursue PCA Directions (by Accident)* | Perturb along principal directions of the latent distribution — follows natural variation, harder to flag | ~0.6–0.8 | In demo |
 | **CDF-PatchSteg** | [Yang et al., CVPR 2024](https://arxiv.org/abs/2404.04956) — *Gaussian Shading: Provable Performance-Lossless Image Watermarking for Diffusion Models* | Replace carrier values with samples from upper/lower half of N(μ,σ) via inverse CDF — distribution-preserving, theoretically undetectable | ~0.50 (chance) | In demo |
 | **PSyDUCK-inspired** | [Jiang et al., arXiv 2501.19172](https://arxiv.org/abs/2501.19172) — *PSyDUCK: Training-Free Steganography for Latent Diffusion Models* | Per-bit unique direction vectors (no shared signature across carriers) — direction-based detectors fail. Post-hoc adaptation of PSyDUCK's trajectory-divergence concept. | ~0.6–0.8 | In demo |
@@ -53,6 +54,24 @@ stego = vae.decode(latent_stego)
 # Decode:
 rec, _ = steg.decode_message(vae.encode(image), vae.encode(stego), carriers[:len(bits)])
 print(PatchSteg.bits_to_text(rec))
+```
+
+### CapacityPatchSteg — `core/capacity_steganography.py`
+> Capacity-oriented PatchSteg variant for longer sentences and paragraphs. Keeps the same cover-image decode assumption, but improves throughput via UTF-8 payload framing, optional zlib compression, binary headers, quaternary payload symbols, and stability-map equalization.
+```python
+from core.capacity_steganography import CapacityPatchSteg
+steg = CapacityPatchSteg(seed=42, epsilon=2.0, bits_per_symbol=2)
+result = steg.encode_text(
+    vae,
+    image,
+    "This is a much longer paragraph than raw ASCII PatchSteg can usually carry.",
+    enable_compression=True,
+)
+stego = result.stego_image
+
+decoded = steg.decode_text(vae, image, stego)
+print(decoded.text)
+print(decoded.payload.compressed, decoded.payload.original_bytes, decoded.payload.stored_bytes)
 ```
 
 ### PCA-PatchSteg — `core/pca_directions.py`
@@ -387,6 +406,16 @@ Steganographic encoder/decoder using directional latent perturbations.
 | `text_to_bits(text)` | ASCII → bit list |
 | `bits_to_text(bits)` | Bit list → ASCII |
 
+### `CapacityPatchSteg(seed=42, epsilon=2.0, bits_per_symbol=2)`
+Capacity-oriented PatchSteg extension for longer textual payloads.
+
+| Method | Description |
+|--------|-------------|
+| `encode_text(vae, image, text, enable_compression=True)` | Compress + frame UTF-8 text, then embed it |
+| `decode_text(vae, cover_image, stego_image)` | Recover and validate framed text payload |
+| `compute_gain_map(vae, image)` | Estimate per-carrier channel gain from the stability map |
+| `select_carriers_by_capacity(vae, image, n_carriers)` | Top-N strongest carriers for multilevel coding |
+
 ---
 
 ## Parameter Guide
@@ -443,6 +472,7 @@ can communicate covertly through images that appear identical to human observers
 - Channel capacity is limited (tens to hundreds of bits per image)
 - Statistical detection is possible at higher perturbation strengths
 - Requires the original cover image for decoding (not blind steganography)
+- `CapacityPatchSteg` is experimental and not yet benchmarked in the paper-quality evaluation suite
 
 ---
 
