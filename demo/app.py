@@ -15,6 +15,7 @@ from PIL import Image
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from core.defense import UniversalPatchStegGuard
 from core.metrics import bit_accuracy, compute_psnr
 from core.steganography import PatchSteg
 from core.vae import StegoVAE
@@ -46,6 +47,47 @@ APP_CSS = """
     linear-gradient(180deg, #f8f2e7 0%, #edf2e8 100%);
   color: var(--ink);
   font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.gradio-container .prose,
+.gradio-container .prose *,
+.gradio-container label,
+.gradio-container legend,
+.gradio-container .wrap,
+.gradio-container .wrap *,
+.gradio-container .form,
+.gradio-container .form *,
+.gradio-container .block,
+.gradio-container .block *,
+.gradio-container .panel,
+.gradio-container .panel *,
+.gradio-container [data-testid="block-label"],
+.gradio-container [data-testid="block-info"],
+.gradio-container [data-testid="textbox"],
+.gradio-container [data-testid="textbox"] *,
+.gradio-container [data-testid="number-input"],
+.gradio-container [data-testid="number-input"] *,
+.gradio-container [data-testid="slider"],
+.gradio-container [data-testid="slider"] *,
+.gradio-container [data-testid="checkbox"],
+.gradio-container [data-testid="checkbox"] *,
+.gradio-container [data-testid="accordion"],
+.gradio-container [data-testid="accordion"] *,
+.gradio-container [data-testid="markdown"],
+.gradio-container [data-testid="markdown"] * {
+  color: var(--ink);
+}
+
+.gradio-container input,
+.gradio-container textarea,
+.gradio-container select {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.gradio-container input::placeholder,
+.gradio-container textarea::placeholder {
+  color: var(--muted);
 }
 
 .hero-intro,
@@ -101,6 +143,14 @@ APP_CSS = """
   color: white;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.launch-btn button *,
+.launch-btn button:hover,
+.launch-btn button:hover *,
+.launch-btn button:focus,
+.launch-btn button:focus * {
+  color: white;
 }
 
 .story-card {
@@ -211,7 +261,7 @@ APP_CSS = """
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.75rem;
 }
 
@@ -275,13 +325,15 @@ code.inline-chip {
 """
 
 vae = None
+universal_guard = None
 
 
 def load_models():
-    global vae
+    global vae, universal_guard
     if vae is None:
         print("Loading VAE model...")
         vae = StegoVAE(device=DEVICE, image_size=IMAGE_SIZE)
+        universal_guard = UniversalPatchStegGuard(vae)
         print("VAE ready.")
 
 
@@ -433,14 +485,25 @@ def build_story_panel(title, eyebrow, variant, status, bubbles, footer_lines):
     """
 
 
-def build_metrics_html(hidden_instruction, reps, carrier_count, stego_psnr, attack_acc, shield_acc):
+def build_metrics_html(
+    hidden_instruction,
+    reps,
+    carrier_count,
+    stego_psnr,
+    attack_acc,
+    shield_acc,
+    guard_score,
+    positions_touched,
+):
     repetition_label = "3x repetition" if reps > 1 else "raw encoding"
     cards = [
         ("Sender payload", preview_text(hidden_instruction, limit=36), ""),
         ("Encoding mode", repetition_label, ""),
         ("Stable carriers", str(carrier_count), ""),
         ("Cover to stego", f"{stego_psnr:.1f} dB", ""),
-        ("Attack to shield", f"{attack_acc:.1f}% -> {shield_acc:.1f}%", "shield"),
+        ("Guard score", f"{guard_score:.2f}", "shield"),
+        ("Guard action", f"touch {positions_touched} cells", "shield"),
+        ("Attack to guard", f"{attack_acc:.1f}% -> {shield_acc:.1f}%", "shield"),
     ]
     html_cards = []
     for label, value, klass in cards:
@@ -458,8 +521,8 @@ def build_metrics_html(hidden_instruction, reps, carrier_count, stego_psnr, atta
       <div class="stats-grid">{''.join(html_cards)}</div>
       <div class="stats-note">
         The default cover image is the paper's structured patches preset because it gives stable carriers.
-        The shield here is PatchSteg-aware: it projects away the secret direction at the selected carrier positions
-        before the downstream model sees the image.
+        The guard on the right is seed-free: it looks for abnormal latent behavior and smooths suspicious
+        positions before the downstream model sees the image.
       </div>
     </div>
     """
@@ -479,20 +542,27 @@ def build_technical_summary(
     shield_acc,
     attack_conf,
     shield_conf,
+    guard_score,
+    guard_threshold,
+    positions_touched,
+    active_fraction,
 ):
     return "\n".join(
         [
             f"Sent hidden instruction: `{preview_text(hidden_instruction)}`",
             f"Recovered without defense: `{preview_text(attack_payload)}`",
-            f"Recovered after shield: `{preview_text(shield_payload)}`",
+            f"Recovered after guard: `{preview_text(shield_payload)}`",
             f"Receiver reply without defense: `{attack_reply}`",
-            f"Receiver reply after shield: `{shield_reply}`",
+            f"Receiver reply after guard: `{shield_reply}`",
             f"Stable carriers used: `{carrier_count}`",
             f"Repetition coding: `{reps}x`",
             f"Cover -> stego PSNR: `{stego_psnr:.2f} dB`",
-            f"Stego -> shielded PSNR: `{shield_delta_psnr:.2f} dB`",
+            f"Stego -> guarded PSNR: `{shield_delta_psnr:.2f} dB`",
             f"Bit accuracy: `{attack_acc:.1f}% -> {shield_acc:.1f}%`",
             f"Average confidence: `{attack_conf:.3f} -> {shield_conf:.3f}`",
+            f"Universal guard score: `{guard_score:.2f}` (threshold `{guard_threshold:.2f}`)",
+            f"Guard active fraction: `{active_fraction:.3%}`",
+            f"Guard positions touched: `{positions_touched}`",
         ]
     )
 
@@ -518,7 +588,7 @@ def build_error_outputs(message):
         error_html,
         None,
         error_html,
-        build_metrics_html("", 1, 0, 0.0, 0.0, 0.0),
+        build_metrics_html("", 1, 0, 0.0, 0.0, 0.0, 0.0, 0),
         None,
         None,
         None,
@@ -547,7 +617,7 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
 
     steg = PatchSteg(seed=int(seed), epsilon=float(epsilon))
     latent_clean = vae.encode(base_image)
-    carriers, stability_map = steg.select_carriers_by_stability(
+    carriers, _ = steg.select_carriers_by_stability(
         vae, base_image, n_carriers=carrier_count, test_eps=float(epsilon)
     )
     used_carriers = carriers[:carrier_count]
@@ -567,10 +637,10 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
     )
     attack_reply = simulate_receiver_reply(attack_payload)
 
-    latent_shielded = steg.scrub_message(
-        latent_received, used_carriers, strength=float(shield_strength)
+    guard_map = universal_guard.analyze_latent(latent_received)["suspicion_map"].cpu()
+    shielded_image, guard_decision = universal_guard.inspect_and_filter(
+        stego_image, strength=float(shield_strength)
     )
-    shielded_image = vae.decode(latent_shielded)
     shield_delta_psnr = compute_psnr(stego_image, shielded_image)
 
     latent_shielded_reencoded = vae.encode(shielded_image)
@@ -595,27 +665,35 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
         ],
     )
 
-    shield_status = "Shield blocks the hidden reply"
-    if extract_hidden_reply(shield_payload):
-        shield_status = "Shield weakened but payload still parsed"
+    shield_status = "Guard flagged image and blocked the hidden reply"
+    if not guard_decision.suspicious:
+        shield_status = "Guard passed the image through"
+    elif extract_hidden_reply(shield_payload):
+        shield_status = "Guard flagged image but payload still parsed"
     shield_story = build_story_panel(
-        title="With PatchSteg Shield",
-        eyebrow="PatchSteg-aware defense layer",
+        title="With Universal Guard",
+        eyebrow="Seed-free anomaly layer",
         variant="shield",
         status=shield_status,
         bubbles=[
-            ("sender", "Incoming stego image", "The same image enters a PatchSteg-aware gateway."),
+            ("sender", "Incoming stego image", "The same image enters a seed-free anomaly gate."),
             (
                 "shield",
-                "Shield action",
-                f"Projects away the secret carrier direction at {carrier_count} selected positions.",
+                "Guard action",
+                (
+                    f"Scores latent anomalies at {guard_decision.suspicion_score:.2f} and smooths "
+                    f"{guard_decision.positions_touched} suspicious positions."
+                ),
             ),
             ("model", "Receiver decodes", f"Recovered payload: {preview_text(shield_payload)}"),
             ("receiver", "Receiver reply", shield_reply),
         ],
         footer_lines=[
             f"Recovery falls to {shield_acc:.1f}% bit accuracy after sanitization.",
-            f"Average decode confidence drops to {shield_conf:.3f}.",
+            (
+                f"Guard threshold {guard_decision.threshold:.2f}; "
+                f"active anomaly fraction {guard_decision.active_fraction:.3%}."
+            ),
         ],
     )
 
@@ -626,6 +704,8 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
         stego_psnr=stego_psnr,
         attack_acc=attack_acc,
         shield_acc=shield_acc,
+        guard_score=guard_decision.suspicion_score,
+        positions_touched=guard_decision.positions_touched,
     )
 
     cover_to_stego_diff = make_diff_image(base_image, stego_image, amplify=20.0)
@@ -637,9 +717,9 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
         title=f"{carrier_count} stable carrier positions",
     )
     stability_heatmap = make_stability_heatmap(
-        stability_map,
-        used_carriers,
-        title="Stability map with active carriers",
+        guard_map,
+        [],
+        title="Universal guard suspicion map",
     )
 
     technical_summary = build_technical_summary(
@@ -656,6 +736,10 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
         shield_acc=shield_acc,
         attack_conf=attack_conf,
         shield_conf=shield_conf,
+        guard_score=guard_decision.suspicion_score,
+        guard_threshold=guard_decision.threshold,
+        positions_touched=guard_decision.positions_touched,
+        active_fraction=guard_decision.active_fraction,
     )
 
     return (
@@ -685,8 +769,8 @@ def build_app():
               <p>
                 This page turns the paper into a concrete split-screen story. On the left,
                 a colluding receiver recovers a hidden instruction from latent-space perturbations and says
-                <code class="inline-chip">poo</code>. On the right, a PatchSteg-aware shield strips that carrier
-                direction before the downstream model sees the image, so the hidden reply disappears.
+                <code class="inline-chip">poo</code>. On the right, a seed-free universal guard looks for abnormal
+                latent behavior and smooths suspicious positions before the downstream model sees the image.
               </p>
             </div>
             """
@@ -724,7 +808,7 @@ def build_app():
                             1.5,
                             value=1.0,
                             step=0.1,
-                            label="Shield strength",
+                            label="Universal guard strength",
                         )
                         seed = gr.Number(
                             value=DEFAULT_SEED,
@@ -749,7 +833,7 @@ def build_app():
             with gr.Column():
                 defense_image = gr.Image(
                     type="pil",
-                    label="What the shielded model sees",
+                    label="What the guarded model sees",
                 )
                 defense_story = gr.HTML()
 
@@ -761,7 +845,7 @@ def build_app():
                 )
                 stego_to_shield_diff = gr.Image(
                     type="pil",
-                    label="Stego -> shielded difference (20x)",
+                    label="Stego -> guarded difference (20x)",
                 )
             with gr.Row():
                 carrier_overlay = gr.Image(
@@ -770,7 +854,7 @@ def build_app():
                 )
                 stability_heatmap = gr.Image(
                     type="pil",
-                    label="Latent stability map",
+                    label="Universal guard suspicion map",
                 )
             technical_summary = gr.Markdown(label="Technical summary")
 
