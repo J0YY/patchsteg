@@ -55,6 +55,41 @@
 - main.tex updated with all extended results (4 new subsections, 4 new figures, 3 new tables)
 - PDF compiled successfully (12 figures, 7 tables total)
 
+## Phase 1: CDF-PatchSteg (Distribution-Preserving)
+
+### 8. cdf_capacity_test.py — PENDING
+- Core module: core/cdf_steganography.py (CDFPatchSteg class)
+- Tests: bit accuracy, PSNR, KS distribution test, detection AUC
+- Expected: KS p > 0.05, detection AUC ~0.5, bit accuracy > 90% at K=20
+- Figures: cdf_capacity_curve.png, cdf_detectability.png, cdf_distribution.png
+
+## Phase 2: PCA-Guided Directions
+
+### 9. pca_test.py — PENDING
+- Core module: core/pca_directions.py (PCADirections, PCAPatchSteg classes)
+- Tests: variance explained, PCA vs random accuracy, PCA detectability
+- Expected: top 3 components explain >90% variance
+- Figures: pca_components.png, pca_accuracy_comparison.png, pca_detectability.png
+
+## Phase 3: Latent-Space Steganalysis Detector
+
+### 10. latent_detector_test.py — PENDING
+- Core module: core/detector.py (LatentStegDetector, 46 features)
+- Tests: within-method detection, cross-method matrix, ROC curves, feature importance
+- Expected: AUC > 0.9 on PatchSteg eps=5, AUC ~0.5 on CDF-PatchSteg
+- Figures: detector_roc_curves.png, detector_cross_method.png, detector_feature_importance.png
+
+## Paper
+- main.tex updated with new Related Work (Gaussian Shading, PRC, Tree-Ring)
+- New Method subsections: CDF Encoding, PCA Directions
+- New Experiment sections: CDF experiments, PCA experiments, Latent-Space Steganalysis
+- Bibliography added with 4 references
+- Tables pending experimental results
+
 ## Remaining work
+- [ ] Run cdf_capacity_test.py and fill in table values
+- [ ] Run pca_test.py and verify variance explained
+- [ ] Run latent_detector_test.py and verify attack-defense narrative
+- [ ] Rebuild PDF after experiments complete
 - [ ] Gradio demo (demo/app.py written but not tested end-to-end)
-- [ ] Could re-run capacity ablation (random vs stability) with unbuffered output to capture numbers
+- [ ] Phase 4: baseline comparison (RoSteALS, TrustMark, Tree-Ring)
