@@ -134,7 +134,6 @@ APP_CSS = """
   line-height: 1.55;
 }
 
-.hero-intro code,
 .hero-intro span,
 .hero-intro div,
 .hero-intro strong,
@@ -144,7 +143,10 @@ APP_CSS = """
 .stats-shell,
 .stats-shell *,
 .forensics-shell,
-.forensics-shell * {
+.forensics-shell p,
+.forensics-shell li,
+.forensics-shell span,
+.forensics-shell label {
   color: var(--ink) !important;
 }
 
@@ -161,6 +163,24 @@ APP_CSS = """
 
 .status-pill.shield {
   color: var(--shield) !important;
+}
+
+.hero-intro code.inline-chip {
+  color: var(--ink) !important;
+  background: #efe5d3 !important;
+}
+
+.forensics-shell code,
+.forensics-shell code *,
+.forensics-shell pre,
+.forensics-shell pre * {
+  color: #f8fafc !important;
+  background: #233140 !important;
+}
+
+.forensics-shell code,
+.forensics-shell pre {
+  border-radius: 8px;
 }
 
 .control-shell {
