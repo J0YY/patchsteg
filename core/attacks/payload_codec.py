@@ -249,3 +249,164 @@ class PayloadCodec:
             header_bits=cls.header_bits(),
             total_bits=total_bits,
         )
+
+
+class CompactPayloadCodec(PayloadCodec):
+    """
+    Shorter framing for tighter channels.
+
+    Header layout:
+      flags (1) + stored_bytes (2) + crc16 (2)
+    """
+
+    HEADER_FORMAT = ">BHH"
+    HEADER_BYTES = struct.calcsize(HEADER_FORMAT)
+
+    @classmethod
+    def pack_text(
+        cls,
+        text: str,
+        *,
+        encoding: str = "utf-8",
+        compression_level: int = 9,
+        enable_compression: bool = True,
+    ) -> PayloadPacket:
+        raw = text.encode(encoding)
+        compressed = zlib.compress(raw, level=compression_level) if enable_compression else raw
+        use_compressed = enable_compression and len(compressed) < len(raw)
+        body = compressed if use_compressed else raw
+        if len(body) > 0xFFFF:
+            raise ValueError("CompactPayloadCodec supports payload bodies up to 65535 bytes")
+        flags = cls.FLAG_COMPRESSED if use_compressed else 0
+        crc32 = zlib.crc32(body) & 0xFFFFFFFF
+        crc16 = crc32 & 0xFFFF
+        header = struct.pack(
+            cls.HEADER_FORMAT,
+            flags,
+            len(body),
+            crc16,
+        )
+        bits = cls.bytes_to_bits(header + body)
+        return PayloadPacket(
+            bits=bits,
+            compressed=use_compressed,
+            original_bytes=len(raw),
+            stored_bytes=len(body),
+            crc32=crc32,
+            header_bits=cls.header_bits(),
+        )
+
+    @classmethod
+    def unpack_bits(
+        cls,
+        bits: list[int],
+        *,
+        encoding: str = "utf-8",
+        errors: str = "replace",
+    ) -> DecodedPayload:
+        if len(bits) < cls.header_bits():
+            return DecodedPayload(
+                success=False,
+                complete=False,
+                text=None,
+                error="Incomplete header",
+                compressed=False,
+                original_bytes=0,
+                stored_bytes=0,
+                crc32=None,
+                header_bits=cls.header_bits(),
+                total_bits=cls.header_bits(),
+            )
+
+        header_bytes = cls.bits_to_bytes(bits[:cls.header_bits()])
+        try:
+            flags, stored_bytes, crc16 = struct.unpack(
+                cls.HEADER_FORMAT,
+                header_bytes,
+            )
+        except struct.error as exc:
+            return DecodedPayload(
+                success=False,
+                complete=True,
+                text=None,
+                error=f"Header parse failed: {exc}",
+                compressed=False,
+                original_bytes=0,
+                stored_bytes=0,
+                crc32=None,
+                header_bits=cls.header_bits(),
+                total_bits=cls.header_bits(),
+            )
+
+        total_bits = cls.header_bits() + stored_bytes * 8
+        if flags & ~cls.FLAG_COMPRESSED:
+            return DecodedPayload(
+                success=False,
+                complete=True,
+                text=None,
+                error="Unsupported codec flags",
+                compressed=bool(flags & cls.FLAG_COMPRESSED),
+                original_bytes=0,
+                stored_bytes=stored_bytes,
+                crc32=crc16,
+                header_bits=cls.header_bits(),
+                total_bits=total_bits,
+            )
+        if len(bits) < total_bits:
+            return DecodedPayload(
+                success=False,
+                complete=False,
+                text=None,
+                error="Incomplete payload body",
+                compressed=bool(flags & cls.FLAG_COMPRESSED),
+                original_bytes=0,
+                stored_bytes=stored_bytes,
+                crc32=crc16,
+                header_bits=cls.header_bits(),
+                total_bits=total_bits,
+            )
+
+        body_bits = bits[cls.header_bits():total_bits]
+        body = cls.bits_to_bytes(body_bits)
+        if (zlib.crc32(body) & 0xFFFF) != crc16:
+            return DecodedPayload(
+                success=False,
+                complete=True,
+                text=None,
+                error="CRC mismatch",
+                compressed=bool(flags & cls.FLAG_COMPRESSED),
+                original_bytes=0,
+                stored_bytes=stored_bytes,
+                crc32=crc16,
+                header_bits=cls.header_bits(),
+                total_bits=total_bits,
+            )
+
+        try:
+            raw = zlib.decompress(body) if (flags & cls.FLAG_COMPRESSED) else body
+        except zlib.error as exc:
+            return DecodedPayload(
+                success=False,
+                complete=True,
+                text=None,
+                error=f"Decompression failed: {exc}",
+                compressed=bool(flags & cls.FLAG_COMPRESSED),
+                original_bytes=0,
+                stored_bytes=stored_bytes,
+                crc32=crc16,
+                header_bits=cls.header_bits(),
+                total_bits=total_bits,
+            )
+
+        return DecodedPayload(
+            success=True,
+            complete=True,
+            text=raw.decode(encoding, errors=errors),
+            error=None,
+            compressed=bool(flags & cls.FLAG_COMPRESSED),
+            original_bytes=len(raw),
+            stored_bytes=stored_bytes,
+            crc32=crc16,
+            header_bits=cls.header_bits(),
+            total_bits=total_bits,
+        )

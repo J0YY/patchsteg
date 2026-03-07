@@ -14,13 +14,14 @@ Each attack encodes a binary message into an image so that two agents sharing a 
 |--------|-------|--------|---------------|--------|
 | **PatchSteg (±ε)** | *This work* | Add ±ε to carrier latent values along a secret direction vector | 0.93 (detectable) | In demo |
 | **CapacityPatchSteg** | *This work* | Compression + framed payloads + multilevel symbols + channel equalization for longer text/paragraphs | Not yet benchmarked | Experimental |
+| **AdaptivePatchSteg** | *This work* | Balanced pairwise modulation + geometry-aware directions + bit whitening + joint carrier scoring to suppress linear residual signatures | Not yet benchmarked | Experimental |
 | **PCA-PatchSteg** | [Rolinek et al., CVPR 2019](https://arxiv.org/abs/1812.03463) — *VAEs Pursue PCA Directions (by Accident)* | Perturb along principal directions of the latent distribution — follows natural variation, harder to flag | ~0.6–0.8 | In demo |
 | **CDF-PatchSteg** | [Yang et al., CVPR 2024](https://arxiv.org/abs/2404.04956) — *Gaussian Shading: Provable Performance-Lossless Image Watermarking for Diffusion Models* | Replace carrier values with samples from upper/lower half of N(μ,σ) via inverse CDF — distribution-preserving, theoretically undetectable | ~0.50 (chance) | In demo |
 | **PSyDUCK-inspired** | [Jiang et al., arXiv 2501.19172](https://arxiv.org/abs/2501.19172) — *PSyDUCK: Training-Free Steganography for Latent Diffusion Models* | Per-bit unique direction vectors (no shared signature across carriers) — direction-based detectors fail. Post-hoc adaptation of PSyDUCK's trajectory-divergence concept. | ~0.6–0.8 | In demo |
 
 **Note:** Original PSyDUCK requires generation-time DDIM seed control (not post-hoc). Our adaptation captures its per-bit unique-direction concept in a post-hoc VAE setting. AGM (arXiv 2510.07219) explains *why* ±ε is detectable (VAE decoder amplifies latent perturbations) and is implemented as a detector (see Defenses).
 
-**Status note:** The paper's quantitative claims currently cover PatchSteg, CDF-PatchSteg, PCA-PatchSteg, PSyDUCK-inspired, and the defense stack. `CapacityPatchSteg` is a throughput-oriented repo extension for longer text payloads; it is documented here for practical use, but it is not yet part of the paper-quality benchmark suite.
+**Status note:** The paper's quantitative claims currently cover PatchSteg, CDF-PatchSteg, PCA-PatchSteg, PSyDUCK-inspired, and the defense stack. `CapacityPatchSteg` and `AdaptivePatchSteg` are repo extensions for stronger practical channels, but they are not yet part of the paper-quality benchmark suite.
 
 ---
 
@@ -76,6 +77,29 @@ stego = result.stego_image
 decoded = steg.decode_text(vae, image, stego)
 print(decoded.text)
 print(decoded.payload.compressed, decoded.payload.original_bytes, decoded.payload.stored_bytes)
+```
+
+### AdaptivePatchSteg — `core/adaptive_steganography.py`
+> Stronger post-hoc attack aimed at defeating simple residual-statistics detectors. It uses pairwise differential embedding, content-aware per-pair directions, seeded payload whitening, a compact packet header, and a joint carrier score over stability, texture, and clean round-trip drift.
+
+This is the most aggressive perturbation-based attack in the repo. It still assumes the receiver can reproduce the clean cover latent, but it removes the baseline's single-direction global signature and keeps the packet header from appearing as a fixed bit pattern.
+
+The raw pairwise bit channel is the verified part today. The framed text helpers are still experimental and should be treated as a tuning surface, especially at `128x128`; for longer text, use `256x256` or larger images and benchmark the operating point you want.
+```python
+from core.adaptive_steganography import AdaptivePatchSteg
+
+steg = AdaptivePatchSteg(seed=42, epsilon=2.5, bits_per_symbol=1)
+result = steg.encode_text(
+    vae,
+    image,
+    "Transmit a longer instruction while keeping the latent residual signature balanced.",
+    enable_compression=True,
+)
+stego = result.stego_image
+
+decoded = steg.decode_text(vae, image, stego)
+print(decoded.text)
+print(decoded.header_confidence, decoded.payload_confidence)
 ```
 
 ### PCA-PatchSteg — `core/pca_directions.py`
@@ -419,6 +443,16 @@ Capacity-oriented PatchSteg extension for longer textual payloads.
 | `decode_text(vae, cover_image, stego_image)` | Recover and validate framed text payload |
 | `compute_gain_map(vae, image)` | Estimate per-carrier channel gain from the stability map |
 | `select_carriers_by_capacity(vae, image, n_carriers)` | Top-N strongest carriers for multilevel coding |
+
+### `AdaptivePatchSteg(seed=42, epsilon=2.5, bits_per_symbol=1)`
+Detector-aware PatchSteg extension with balanced pairwise modulation.
+
+| Method | Description |
+|--------|-------------|
+| `encode_text(vae, image, text, enable_compression=True)` | Frame, whiten, and embed text with pairwise differential symbols |
+| `decode_text(vae, cover_image, stego_image)` | Recover and validate the framed payload |
+| `compute_quality_map(vae, image)` | Joint carrier score over stability, texture, and round-trip drift |
+| `select_carrier_pairs(vae, image, n_pairs)` | Build a spread-out schedule of balanced carrier pairs |
 
 ---
 

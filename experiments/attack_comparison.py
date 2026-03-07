@@ -33,6 +33,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
 from core.vae import StegoVAE
+from core.adaptive_steganography import AdaptivePatchSteg
 from core.steganography import PatchSteg
 from core.cdf_steganography import CDFPatchSteg
 from core.pca_directions import PCADirections, PCAPatchSteg
@@ -108,6 +109,7 @@ results = {}
 attack_configs = [
     ("PatchSteg (±ε, ε=2)",   'patchsteg', 2.0),
     ("PatchSteg (±ε, ε=5)",   'patchsteg', 5.0),
+    ("AdaptivePatchSteg (ε=5)", 'adaptive', 5.0),
     ("PCA-PatchSteg (ε=5)",   'pca',       5.0),
     ("PSyDUCK-inspired (ε=5)","psyduck",   5.0),
     ("CDF-PatchSteg",          'cdf',       None),
@@ -137,6 +139,25 @@ for label, method, eps in attack_configs:
             stego = vae.decode(lat_m)
             lat_re = vae.encode(stego)
             rec, _ = steg.decode_message(latent, lat_re, carriers)
+
+        elif method == 'adaptive':
+            steg = AdaptivePatchSteg(seed=42, epsilon=eps, bits_per_symbol=1)
+            pairs, _, gain_map, latent_clean = steg.select_carrier_pairs(
+                vae,
+                img,
+                n_pairs=N_CARRIERS,
+                test_eps=eps,
+            )
+            lat_m = steg.encode_message(
+                latent_clean,
+                pairs,
+                bits,
+                gain_map=gain_map,
+                latent_reference=latent_clean,
+            )
+            stego = vae.decode(lat_m)
+            lat_re = vae.encode(stego)
+            rec, _ = steg.decode_message(latent_clean, lat_re, pairs, gain_map=gain_map)
 
         elif method == 'psyduck':
             steg = PSyDUCKSteg(seed=42, epsilon=eps)
