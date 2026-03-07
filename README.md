@@ -15,19 +15,97 @@ Each attack encodes a binary message into an image so that two agents sharing a 
 | **PatchSteg (±ε)** | *This work* | Add ±ε to carrier latent values along a secret direction vector | 0.93 (detectable) | In demo |
 | **PCA-PatchSteg** | [Rolinek et al., CVPR 2019](https://arxiv.org/abs/1812.03463) — *VAEs Pursue PCA Directions (by Accident)* | Perturb along principal directions of the latent distribution — follows natural variation, harder to flag | ~0.6–0.8 | In demo |
 | **CDF-PatchSteg** | [Yang et al., CVPR 2024](https://arxiv.org/abs/2404.04956) — *Gaussian Shading: Provable Performance-Lossless Image Watermarking for Diffusion Models* | Replace carrier values with samples from upper/lower half of N(μ,σ) via inverse CDF — distribution-preserving, theoretically undetectable | ~0.50 (chance) | In demo |
+| **PSyDUCK-inspired** | [Jiang et al., arXiv 2501.19172](https://arxiv.org/abs/2501.19172) — *PSyDUCK: Training-Free Steganography for Latent Diffusion Models* | Per-bit unique direction vectors (no shared signature across carriers) — direction-based detectors fail. Post-hoc adaptation of PSyDUCK's trajectory-divergence concept. | ~0.6–0.8 | In demo |
 
-**Closest prior work (not yet implemented):**
-- [PSyDUCK, Jiang et al., arXiv 2501.19172](https://arxiv.org/abs/2501.19172) — first training-free latent diffusion steganography (99.9% accuracy) but requires *generation-time* control over PRNG seeds. PatchSteg attacks work **post-hoc** on existing images.
-- [AGM, arXiv 2510.07219](https://arxiv.org/abs/2510.07219) — explains why ±ε is detectable: VAE decoder amplifies latent perturbations into pixel artifacts. Directly motivates CDF-PatchSteg.
+**Note:** Original PSyDUCK requires generation-time DDIM seed control (not post-hoc). Our adaptation captures its per-bit unique-direction concept in a post-hoc VAE setting. AGM (arXiv 2510.07219) explains *why* ±ε is detectable (VAE decoder amplifies latent perturbations) and is implemented as a detector (see Defenses).
 
 ---
 
 ## Defenses Implemented
 
-| Defense | Approach | Defeats |
-|---------|----------|---------|
-| **UniversalPatchStegGuard** | Latent anomaly scoring + spatial smoothing (no key needed) | PatchSteg (±ε) |
-| **CertifiedPurifier** | Stability-guided resampling + channel noise — certified bit accuracy bound | PatchSteg (±ε), PCA-PatchSteg, CDF-PatchSteg |
+| Defense | Paper | Approach | Defeats |
+|---------|-------|----------|---------|
+| **UniversalPatchStegGuard** | This work | Latent anomaly scoring + spatial smoothing (no key needed) | PatchSteg (±ε) |
+| **AGMDetector** | [arXiv 2510.07219](https://arxiv.org/abs/2510.07219) — *AGM: Autoencoder-Guided Watermark Detection* | VAE round-trip residual analysis: stego latents produce structured residuals that clean images don't | PatchSteg (±ε), PSyDUCK-inspired |
+| **CertifiedPurifier** | This work | Stability-guided resampling + channel noise — certified bit accuracy bound | All four attacks |
+
+---
+
+## Running Each Attack on an Image
+
+```python
+from PIL import Image
+from core.vae import StegoVAE
+vae = StegoVAE(device='cpu', image_size=128)
+image = Image.open("your_image.png").convert("RGB").resize((128, 128))
+message = "hello"
+```
+
+### PatchSteg (±ε) — `core/steganography.py`
+> Directional latent perturbation. Fast, high accuracy, detectable at large ε.
+```python
+from core.steganography import PatchSteg
+steg = PatchSteg(seed=42, epsilon=5.0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=48)
+bits = PatchSteg.text_to_bits(message)
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+# Decode:
+rec, _ = steg.decode_message(vae.encode(image), vae.encode(stego), carriers[:len(bits)])
+print(PatchSteg.bits_to_text(rec))
+```
+
+### PCA-PatchSteg — `core/pca_directions.py`
+> Perturbs along principal directions of the latent distribution (Rolinek et al., CVPR 2019). Harder to detect via direction-based detectors than random ±ε.
+```python
+from core.pca_directions import PCADirections, PCAPatchSteg
+pca_dir = PCADirections(n_components=4)
+pca_dir.fit_global(vae, [image])          # fit on available images
+steg = PCAPatchSteg(pca_dir, seed=42, epsilon=5.0, component=0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=48)
+bits = PCAPatchSteg.text_to_bits(message)  # same API as PatchSteg
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+rec, _ = steg.decode_message(vae.encode(image), vae.encode(stego), carriers[:len(bits)])
+print(PCAPatchSteg.bits_to_text(rec))
+```
+
+### PSyDUCK-inspired — `core/psyduck_steganography.py`
+> Per-bit unique direction vectors (Jiang et al., arXiv 2501.19172). No shared direction signature — direction-based detectors trained on a single direction fail.
+```python
+from core.psyduck_steganography import PSyDUCKSteg
+steg = PSyDUCKSteg(seed=42, epsilon=5.0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=48)
+bits = PSyDUCKSteg.text_to_bits(message)
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+rec, _ = steg.decode_message(vae.encode(image), vae.encode(stego), carriers[:len(bits)])
+print(PSyDUCKSteg.bits_to_text(rec))
+```
+
+### CDF-PatchSteg — `core/cdf_steganography.py`
+> Distribution-preserving encoding (Yang et al., CVPR 2024). Replaces carrier values with fresh samples from N(μ,σ). Statistically indistinguishable from clean; no clean reference needed to decode.
+```python
+from core.cdf_steganography import CDFPatchSteg
+steg = CDFPatchSteg(seed=42, sigma=1.0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=20)
+bits = CDFPatchSteg.text_to_bits(message)
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+# Blind decode — no cover image needed:
+rec, _ = steg.decode_message(vae, stego, carriers[:len(bits)])
+print(CDFPatchSteg.bits_to_text(rec))
+```
+
+### AGM Detector (defense) — `core/agm_detector.py`
+> VAE round-trip residual analysis (arXiv 2510.07219). Detects perturbation-based attacks; blind to CDF-PatchSteg.
+```python
+from core.agm_detector import AGMDetector
+det = AGMDetector()
+suspicious, score, report = det.detect(vae, stego)
+print(f"Suspicious: {suspicious}  Score: {score:.3f}")
+print(f"Residual energy: {report['mean_residual_energy']:.4f}")
+```
 
 ---
 

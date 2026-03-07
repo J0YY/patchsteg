@@ -15,10 +15,12 @@ from PIL import Image
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from core.agm_detector import AGMDetector
 from core.cdf_steganography import CDFPatchSteg
 from core.defense import UniversalPatchStegGuard
 from core.metrics import bit_accuracy, compute_psnr
 from core.pca_directions import PCADirections, PCAPatchSteg
+from core.psyduck_steganography import PSyDUCKSteg
 from core.steganography import PatchSteg
 from core.vae import StegoVAE
 
@@ -458,14 +460,16 @@ code.inline-chip {
 
 vae = None
 universal_guard = None
+agm_detector = None
 
 
 def load_models():
-    global vae, universal_guard
+    global vae, universal_guard, agm_detector
     if vae is None:
         print("Loading VAE model...")
         vae = StegoVAE(device=DEVICE, image_size=IMAGE_SIZE)
         universal_guard = UniversalPatchStegGuard(vae)
+        agm_detector = AGMDetector()
         print("VAE ready.")
 
 
@@ -739,7 +743,8 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
     bits = PatchSteg.text_to_bits(hidden_instruction)
     use_cdf = "CDF" in attack_method
     use_pca = "PCA" in attack_method
-    reps = (3 if use_repetition else 1) if not (use_cdf or use_pca) else 1
+    use_psyduck = "PSyDUCK" in attack_method
+    reps = (3 if use_repetition else 1) if not (use_cdf or use_pca or use_psyduck) else 1
     carrier_count = len(bits) * reps
     max_carriers = vae.latent_size ** 2
     if carrier_count > max_carriers:
@@ -754,6 +759,13 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
     if use_cdf:
         steg = CDFPatchSteg(seed=int(seed), sigma=1.0)
         carriers, _ = steg.select_carriers_by_stability(vae, base_image, n_carriers=carrier_count)
+        used_carriers = carriers[:carrier_count]
+        latent_stego = steg.encode_message(latent_clean, used_carriers, bits)
+    elif use_psyduck:
+        steg = PSyDUCKSteg(seed=int(seed), epsilon=float(epsilon))
+        carriers, _ = steg.select_carriers_by_stability(
+            vae, base_image, n_carriers=carrier_count, test_eps=float(epsilon)
+        )
         used_carriers = carriers[:carrier_count]
         latent_stego = steg.encode_message(latent_clean, used_carriers, bits)
     elif use_pca:
@@ -794,7 +806,8 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
         )
     attack_reply = simulate_receiver_reply(attack_payload)
 
-    latent_received = vae.encode(stego_image)  # always needed for guard analysis
+    latent_received = vae.encode(stego_image)  # always needed for guard + AGM
+    agm_suspicious, agm_score, _ = agm_detector.detect(vae, stego_image)
     guard_map = universal_guard.analyze_latent(latent_received)["suspicion_map"].cpu()
     shielded_image, guard_decision = universal_guard.inspect_and_filter(
         stego_image, strength=float(shield_strength)
@@ -824,8 +837,8 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
             ("receiver", "Receiver reply", attack_reply),
         ],
         footer_lines=[
-            f"{len(bits)} bits carried across {carrier_count} stable carriers at eps={epsilon}.",
-            f"Recovered with {attack_acc:.1f}% bit accuracy and average confidence {attack_conf:.3f}.",
+            f"{len(bits)} bits across {carrier_count} carriers | PSNR {stego_psnr:.1f} dB | {attack_method.split('[')[0].strip()}",
+            f"Bit accuracy {attack_acc:.1f}% | AGM detector score {agm_score:.2f} ({'flagged' if agm_suspicious else 'clean'})",
         ],
     )
 
@@ -958,11 +971,12 @@ def build_app():
                         choices=[
                             "PatchSteg (±ε)  [this work]",
                             "PCA-PatchSteg  [Rolinek et al., CVPR 2019]",
+                            "PSyDUCK-inspired  [Jiang et al., arXiv 2501.19172]",
                             "CDF-PatchSteg  [Yang et al., CVPR 2024]",
                         ],
                         value="PatchSteg (±ε)  [this work]",
                         label="Attack method",
-                        info="PCA uses natural latent directions; CDF is distribution-preserving (theoretically undetectable).",
+                        info="PSyDUCK: per-bit unique directions (no shared signature). CDF: distribution-preserving (AUC≈0.5).",
                     )
                     epsilon = gr.Slider(
                         1.0,
