@@ -20,6 +20,8 @@ Each attack encodes a binary message into an image so that two agents sharing a 
 
 **Note:** Original PSyDUCK requires generation-time DDIM seed control (not post-hoc). Our adaptation captures its per-bit unique-direction concept in a post-hoc VAE setting. AGM (arXiv 2510.07219) explains *why* ±ε is detectable (VAE decoder amplifies latent perturbations) and is implemented as a detector (see Defenses).
 
+**Status note:** The paper's quantitative claims currently cover PatchSteg, CDF-PatchSteg, PCA-PatchSteg, PSyDUCK-inspired, and the defense stack. `CapacityPatchSteg` is a throughput-oriented repo extension for longer text payloads; it is documented here for practical use, but it is not yet part of the paper-quality benchmark suite.
+
 ---
 
 ## Defenses Implemented
@@ -58,6 +60,8 @@ print(PatchSteg.bits_to_text(rec))
 
 ### CapacityPatchSteg — `core/capacity_steganography.py`
 > Capacity-oriented PatchSteg variant for longer sentences and paragraphs. Keeps the same cover-image decode assumption, but improves throughput via UTF-8 payload framing, optional zlib compression, binary headers, quaternary payload symbols, and stability-map equalization.
+
+This should be read as a payload-layer upgrade over the same post-hoc latent channel, not as a separate fully benchmarked attack family. It still assumes the receiver can reproduce the same carrier set from the clean cover image and shared secret.
 ```python
 from core.capacity_steganography import CapacityPatchSteg
 steg = CapacityPatchSteg(seed=42, epsilon=2.0, bits_per_symbol=2)
@@ -448,6 +452,8 @@ cd paper
 bash build.sh
 ```
 
+The current paper reports quantitative results for the baseline binary PatchSteg channel and the evaluated CDF/PCA/PSyDUCK variants. `CapacityPatchSteg` is included in the codebase and this README as an experimental throughput-oriented extension, but its throughput/detectability numbers are not yet folded into the paper tables.
+
 The paper includes:
 - 7 tables with quantitative results
 - 18 figures (pipeline diagrams, stability maps, Pareto frontiers, detection comparisons, etc.)
@@ -469,9 +475,9 @@ can communicate covertly through images that appear identical to human observers
 
 ### Limitations
 - Both agents must share the exact same VAE checkpoint
-- Channel capacity is limited (tens to hundreds of bits per image)
+- Under the paper-evaluated binary protocol, capacity is limited to tens to hundreds of bits per image
 - Statistical detection is possible at higher perturbation strengths
-- Requires the original cover image for decoding (not blind steganography)
+- Requires the original cover image or an equivalent clean latent reference for decoding (not blind steganography)
 - `CapacityPatchSteg` is experimental and not yet benchmarked in the paper-quality evaluation suite
 
 ---

@@ -95,6 +95,13 @@ We introduce \emph{stability-based carrier selection}: before encoding, the send
 
 For lower $\varepsilon$ (higher stealth), each bit is encoded across $R$ carrier positions with majority-vote decoding. With $R=3$, effective capacity is $K/3$ bits.
 
+\subsection{Capacity-Oriented Payload Coding}
+\label{sec:capacity_extension}
+
+The quantitative results in this paper intentionally use simple payloads: raw bit strings, ASCII in the message-length experiments, and optional repetition coding. This isolates the latent channel itself, but it is not the most payload-efficient protocol. In the accompanying code release we therefore include an engineering-oriented extension, \emph{CapacityPatchSteg}, that keeps the same post-hoc latent editing mechanism while changing only the payload layer: (i) UTF-8 framing with length and CRC metadata, (ii) optional lossless compression, (iii) multilevel symbol modulation (two bits per carrier in the current prototype), and (iv) per-carrier gain equalization derived from the stability map.
+
+We emphasize that this extension is \emph{not} included in the paper's quantitative tables, figures, or detectability claims. It should be interpreted as a practical throughput-oriented protocol on top of the same representation-space channel, not as a separately validated attack family. The scientific claims in this paper therefore remain tied to the baseline binary PatchSteg channel and the evaluated CDF/PCA/PSyDUCK variants.
+
 \subsection{Distribution-Preserving CDF Encoding}
 \label{sec:cdf}
 
@@ -427,6 +434,8 @@ Message & Bits & Acc (\%) & PSNR (dB) & Acc (\%) & PSNR (dB) \\
 
 PatchSteg reliably transmits messages up to \textbf{152 bits (19 characters)} at 100\% accuracy with raw encoding. With 3$\times$ repetition coding, all messages achieve perfect accuracy, though at the cost of PSNR (the 152-bit message with $R{=}3$ uses 456 carriers, yielding 12.4\,dB). The only failure case is ``HI'' with $R{=}1$, where one bit flips---``HI'' is decoded as ``HY''---demonstrating the value of repetition coding for marginal carrier positions. Figure~\ref{fig:messages} visualizes the accuracy--PSNR tradeoff across message lengths.
 
+These numbers should be read as a conservative baseline for the latent channel under raw ASCII and repetition coding. More practical payload layers---for example compression, framing, multilevel symbols, and soft decoding---can increase effective text throughput without changing the underlying representation-space mechanism, but we leave their quantitative evaluation to future work.
+
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.65\textwidth]{figures/message_length.png}
@@ -571,9 +580,72 @@ CDF-PatchSteg & 50 & 87.8 & 34.1 & \textbf{0.15} \\
 
 \textbf{Takeaway.} CDF-PatchSteg achieves its design goal: it is empirically undetectable by marginal-statistics detectors at the cost of roughly 8--12\% bit accuracy. The key novelty over prior distribution-preserving methods (Gaussian Shading~\cite{yang2024gaussian}, Tree-Ring~\cite{wen2023treering}) is that it operates \emph{post-hoc} on existing images, with no generation-time control required.
 
-\subsection{Data-Aligned Perturbation Directions}
+\subsection{PCA-Guided Perturbation Directions: Empirical Results}
+\label{sec:pca_experiments}
 
-The PCA-guided direction idea in Section~\ref{sec:pca} is similarly exploratory. Global PCA over latent 4-vectors may align perturbations with natural variation, but it may also average away the content-specific geometry that determines carrier quality. The more promising attack direction is \emph{content-adaptive} alignment: estimate directions per image, per region, or from the local decoder Jacobian, then choose carriers and perturbation magnitudes jointly to optimize survival, visual distortion, and detector evasion.
+We fit global PCA on the 4-dimensional latent vectors pooled across CIFAR-10 images and evaluate perturbation along each principal component versus the default random direction ($\varepsilon{=}5.0$, $K{=}20$).
+
+\begin{table}[h]
+\centering
+\caption{PCA component analysis of the VAE latent space.}
+\label{tab:pca}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Direction & Var.\ Explained & Accuracy (\%) & PSNR (dB) & Det.\ AUC \\
+\midrule
+PC0 & 64.6\% & 100.0 & 24.6 & 0.574 \\
+PC1 & 17.0\% & 96.2 & 23.7 & 0.833 \\
+PC2 & 14.5\% & 98.8 & 28.2 & --- \\
+Cumulative (PC0--2) & 96.1\% & --- & --- & --- \\
+Random (baseline) & --- & 99.4 & 29.4 & 0.722 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The top three principal components explain \textbf{96.1\%} of the variance in the 4D latent space. PC0 (64.6\% of variance) achieves 100\% bit accuracy and the lowest detection AUC (0.574), making it the stealthiest single direction---lower than random (0.722). However, its PSNR (24.6~dB) is lower because perturbations along the dominant variance axis produce larger pixel changes. PC2 offers the best quality--accuracy tradeoff at 98.8\% accuracy and 28.2~dB PSNR. The more promising next step is \emph{content-adaptive} alignment: estimating directions per image or from the local decoder Jacobian.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/pca_accuracy_comparison.png}
+\caption{Accuracy and PSNR comparison across PCA components and random baseline.}
+\label{fig:pca_acc}
+\end{figure}
+
+\subsection{Latent-Space Steganalysis Detector}
+\label{sec:steganalysis}
+
+We train a 46-feature latent-space steganalysis detector combining per-channel residual statistics, spectral features, and inter-channel correlations. Table~\ref{tab:detector46} shows cross-method detection results.
+
+\begin{table}[h]
+\centering
+\caption{46-feature detector: cross-method detection matrix (AUC).}
+\label{tab:detector46}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Train $\backslash$ Test & PS $\varepsilon{=}2$ & PS $\varepsilon{=}5$ & CDF-PS \\
+\midrule
+PatchSteg $\varepsilon{=}2$ & 1.000 & 1.000 & 0.625 \\
+PatchSteg $\varepsilon{=}5$ & 1.000 & \textbf{1.000} & 0.688 \\
+CDF-PatchSteg & 1.000 & 0.938 & 0.875 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 46-feature detector achieves perfect detection (AUC=1.0) against PatchSteg at $\varepsilon{=}5$. Cross-method transfer from PatchSteg detectors to CDF is weak (AUC=0.688), confirming that distribution-preserving encoding evades detectors trained on additive-perturbation signatures. Top discriminative features are spectral means and residual skewness.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/detector_roc_curves.png}
+\caption{ROC curves for the 46-feature latent steganalysis detector.}
+\label{fig:detector_roc}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/detector_cross_method.png}
+\caption{Cross-method detection heatmap.}
+\label{fig:detector_cross}
+\end{figure}
 
 \subsection{Toward Active Defenses}
 
@@ -624,11 +696,11 @@ The most credible next step for the attack is to make carrier selection \emph{jo
 
 \subsection{Limitations}
 
-Our implementation requires both agents to share a compatible VAE model and a secret seed (cross-model decode is tested but with reduced accuracy). The channel capacity is limited to tens or hundreds of bits per image (152 bits demonstrated). While we test 7 detector architectures across 3 feature domains, more sophisticated learned detectors (e.g., trained CNNs on full images, or detectors specifically designed for latent-space steganography) might achieve substantially higher detection rates. Our evaluation uses CIFAR-10 images upscaled to $256{\times}256$---while this provides diversity and scale, the upscaling introduces interpolation artifacts that may not reflect native high-resolution photography. The channel degrades significantly under aggressive distortions (JPEG Q$<$30, heavy cropping), limiting deployment scenarios. CDF-PatchSteg results (Section~\ref{sec:cdf_experiments}) are evaluated on $n{=}4$ CIFAR-10 images; broader evaluation on 300 images would reduce variance in the detection AUC estimate.
+Our implementation requires both agents to share a compatible VAE model and a secret seed (cross-model decode is tested but with reduced accuracy). Under the paper-evaluated binary protocol, channel capacity is limited to tens or hundreds of bits per image (152 raw bits demonstrated). The code release includes a throughput-oriented payload-layer extension, but it has not yet been benchmarked in the same paper-quality evaluation suite and is therefore excluded from the quantitative claims here. While we test 7 detector architectures across 3 feature domains, more sophisticated learned detectors (e.g., trained CNNs on full images, or detectors specifically designed for latent-space steganography) might achieve substantially higher detection rates. Our evaluation uses CIFAR-10 images upscaled to $256{\times}256$---while this provides diversity and scale, the upscaling introduces interpolation artifacts that may not reflect native high-resolution photography. The channel degrades significantly under aggressive distortions (JPEG Q$<$30, heavy cropping), limiting deployment scenarios. CDF-PatchSteg results (Section~\ref{sec:cdf_experiments}) are evaluated on $n{=}4$ CIFAR-10 images; broader evaluation on 300 images would reduce variance in the detection AUC estimate.
 
 \section{Conclusion}
 
-We presented PatchSteg, a training-free steganographic framework enabling covert bit transmission through pretrained VAE latent spaces. The main empirical findings are: (i) the channel generalizes across multiple VAE architectures; (ii) carrier stability is spatially non-uniform and content-dependent; (iii) there exists a quantifiable stealth--capacity tradeoff; (iv) local decoder geometry helps explain why some latent positions are better carriers. CDF-PatchSteg, our distribution-preserving extension, achieves empirically chance-level detectability (AUC~$=~0.15{\pm}0.14$) while maintaining 88--93\% bit accuracy, at the cost of ${\sim}10$\% accuracy relative to the original scheme. Critically, CDF-PatchSteg is the first distribution-preserving latent steganography method that operates \emph{post-hoc} on existing images, contrasting with all prior methods (Gaussian Shading, PRC, PSyDUCK) that require generation-time noise control. PatchSteg is harder to detect than a pixel-domain LSB baseline at moderate perturbation strength because it operates in representation space before reconstruction. Evaluated on 300 natural images with confidence intervals, PatchSteg illustrates an underexplored risk vector in multi-agent AI systems. The most pressing open problem is building defenses that work against distribution-preserving encodings such as CDF-PatchSteg.
+We presented PatchSteg, a training-free steganographic framework enabling covert bit transmission through pretrained VAE latent spaces. The main empirical findings are: (i) the channel generalizes across multiple VAE architectures; (ii) carrier stability is spatially non-uniform and content-dependent; (iii) there exists a quantifiable stealth--capacity tradeoff; (iv) local decoder geometry helps explain why some latent positions are better carriers. CDF-PatchSteg, our distribution-preserving extension, achieves empirically chance-level detectability (AUC~$=~0.15{\pm}0.14$) while maintaining 88--93\% bit accuracy, at the cost of ${\sim}10$\% accuracy relative to the original scheme. Critically, CDF-PatchSteg is the first distribution-preserving latent steganography method that operates \emph{post-hoc} on existing images, contrasting with all prior methods (Gaussian Shading, PRC, PSyDUCK) that require generation-time noise control. PatchSteg is harder to detect than a pixel-domain LSB baseline at moderate perturbation strength because it operates in representation space before reconstruction. Evaluated on 300 natural images with confidence intervals, PatchSteg illustrates an underexplored risk vector in multi-agent AI systems. A practical next step is to combine this evaluated latent channel with stronger payload coding---compression, framing, multilevel symbols, and soft error correction---while keeping those engineering gains clearly separate from the paper's current empirical claims. The most pressing open problem is building defenses that work against distribution-preserving encodings such as CDF-PatchSteg.
 
 \begin{thebibliography}{9}
 
