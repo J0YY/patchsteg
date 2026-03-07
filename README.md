@@ -167,9 +167,58 @@ print(f"Decoded: {decoded_text}")  # "HI"
 ### Run the interactive demo
 
 ```bash
-conda activate patchsteg
+# WSL (recommended — uses venv outside repo for speed)
+source ~/patchseg-venv/bin/activate
 python demo/app.py
 # Opens Gradio interface at http://localhost:7860
+
+# conda alternative
+conda activate patchsteg
+python demo/app.py
+```
+
+The demo has a **"Attack method"** selector in the UI:
+- **Original PatchSteg (±ε)** — classic directional perturbation (detectable at high ε)
+- **CDF-PatchSteg (SOTA, undetectable)** — distribution-preserving encoding, theoretically undetectable (AUC ≈ 0.5)
+
+A static HTML summary of the demo is also saved at `demo/demo_summary.html` for offline presentation.
+
+---
+
+## SOTA Attacks
+
+### CDF-PatchSteg — Distribution-Preserving Steganography
+
+The original PatchSteg uses ±ε perturbations which are statistically detectable (AUC 0.93 at ε=5.0). **CDF-PatchSteg** is our state-of-the-art replacement: instead of shifting values by ε, it resamples each carrier value from the upper or lower half of the latent distribution N(μ, σ) using inverse Gaussian CDF. The resulting latent is statistically indistinguishable from a clean encode (target detection AUC ≈ 0.5).
+
+**Key distinction vs prior SOTA** (Gaussian Shading, PRC, PSyDUCK): all existing distribution-preserving methods require *control over the diffusion noise seed during generation*. CDF-PatchSteg works **post-hoc** on existing images — the sender did not generate them.
+
+#### Python API
+
+```python
+from core.vae import StegoVAE
+from core.cdf_steganography import CDFPatchSteg
+
+vae = StegoVAE(device='cpu', image_size=128)
+cdf = CDFPatchSteg(seed=42, sigma=1.0)
+
+# Encode
+carriers, _ = cdf.select_carriers_by_stability(vae, cover_image, n_carriers=20)
+latent = vae.encode(cover_image)
+bits = [1, 0, 1, 1, 0, 1, 0, 0]  # your message bits
+latent_stego = cdf.encode_message(latent, carriers, bits)
+stego_image = vae.decode(latent_stego)
+
+# Decode (no clean latent needed — blind decode)
+decoded_bits, confidences = cdf.decode_message(vae, stego_image, carriers)
+```
+
+#### Run the experiment
+
+```bash
+source ~/patchseg-venv/bin/activate
+python experiments/cdf_capacity_test.py
+# Generates: paper/figures/cdf_capacity_curve.png, cdf_detectability.png, cdf_distribution.png
 ```
 
 ---

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PatchSteg — Interactive Demo Summary</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e0e0e0; line-height: 1.6; }
+    header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 48px 32px; text-align: center; border-bottom: 1px solid #2a2a4a; }
+    header h1 { font-size: 2.4rem; font-weight: 700; color: #7eb8f7; margin-bottom: 8px; }
+    header p { font-size: 1.1rem; color: #a0a8b8; max-width: 700px; margin: 0 auto; }
+    .badge { display: inline-block; background: #2a3a5a; color: #7eb8f7; border-radius: 4px; padding: 2px 10px; font-size: 0.8rem; font-weight: 600; margin: 4px; }
+    .badge.green { background: #1a3a2a; color: #4ecb71; }
+    .badge.orange { background: #3a2a1a; color: #f0a040; }
+    main { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+    section { margin-bottom: 48px; }
+    h2 { font-size: 1.5rem; color: #7eb8f7; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #2a2a4a; }
+    h3 { font-size: 1.1rem; color: #c0d0f0; margin: 20px 0 10px; }
+    p { color: #b0b8c8; margin-bottom: 12px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .card { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 10px; padding: 24px; }
+    .card h3 { margin-top: 0; }
+    .card .label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #7eb8f7; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #1a1a2e; color: #7eb8f7; padding: 10px 14px; text-align: left; border: 1px solid #2a2a4a; }
+    td { padding: 9px 14px; border: 1px solid #2a2a4a; color: #c0c8d8; }
+    tr:nth-child(even) td { background: #141420; }
+    td.good { color: #4ecb71; font-weight: 600; }
+    td.bad { color: #e07060; font-weight: 600; }
+    td.neutral { color: #f0a040; font-weight: 600; }
+    code { background: #1a1a2e; color: #7eb8f7; padding: 2px 7px; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 0.9em; }
+    pre { background: #141420; border: 1px solid #2a2a4a; border-radius: 8px; padding: 20px; overflow-x: auto; font-family: 'Consolas', monospace; font-size: 0.88rem; color: #c8d8e8; line-height: 1.7; }
+    .highlight { background: #1f2a1f; border-left: 4px solid #4ecb71; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .warning { background: #2a1f1a; border-left: 4px solid #f0a040; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .attack-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 700px) { .attack-comparison { grid-template-columns: 1fr; } }
+    .attack-box { background: #1a1a2e; border-radius: 10px; padding: 24px; }
+    .attack-box.original { border: 1px solid #4a3a2a; }
+    .attack-box.sota { border: 1px solid #2a4a3a; }
+    .attack-box .title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; }
+    .attack-box.original .title { color: #f0a040; }
+    .attack-box.sota .title { color: #4ecb71; }
+    .metric-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #2a2a3a; font-size: 0.9rem; }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label { color: #808898; }
+    .metric-val { font-weight: 600; }
+    footer { text-align: center; padding: 32px; border-top: 1px solid #2a2a4a; color: #606878; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>PatchSteg</h1>
+  <p>Covert Steganographic Communication Between Vision Models via Latent Space Perturbation</p>
+  <div style="margin-top: 16px;">
+    <span class="badge">Training-free</span>
+    <span class="badge">Post-hoc</span>
+    <span class="badge green">CDF-PatchSteg: AUC ≈ 0.5</span>
+    <span class="badge orange">No GPU required</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- OVERVIEW -->
+  <section>
+    <h2>What is PatchSteg?</h2>
+    <p>
+      PatchSteg embeds binary messages in images by making small, structured changes in the
+      latent space of a pretrained VAE (Stable Diffusion VAE). Two AI agents sharing a secret seed
+      can send hidden instructions through images that appear pixel-identical to human observers.
+    </p>
+    <div class="highlight">
+      <strong>Key novelty:</strong> PatchSteg works on <em>existing images</em> — post-hoc, with no training,
+      no fine-tuning, and no generation-time control. All prior distribution-preserving methods
+      (Gaussian Shading, PRC, PSyDUCK) require injecting the secret during diffusion sampling.
+    </div>
+  </section>
+
+  <!-- ATTACK METHODS -->
+  <section>
+    <h2>Attack Methods (available in demo UI)</h2>
+    <div class="attack-comparison">
+      <div class="attack-box original">
+        <div class="title">Original PatchSteg (±ε)</div>
+        <p style="font-size:0.87rem; color:#a0a8b8; margin-bottom:14px;">
+          Shifts each carrier latent value by +ε (bit=1) or −ε (bit=0) along a shared direction vector.
+          Fast and accurate but statistically detectable at high ε.
+        </p>
+        <div class="metric-row"><span class="metric-label">Bit accuracy</span><span class="metric-val" style="color:#4ecb71">~100% (ε=5)</span></div>
+        <div class="metric-row"><span class="metric-label">PSNR</span><span class="metric-val">~29 dB (K=20)</span></div>
+        <div class="metric-row"><span class="metric-label">Detection AUC</span><span class="metric-val" style="color:#e07060">0.93</span></div>
+        <div class="metric-row"><span class="metric-label">Blind decode</span><span class="metric-val" style="color:#e07060">No (needs cover)</span></div>
+      </div>
+      <div class="attack-box sota">
+        <div class="title">CDF-PatchSteg — SOTA (undetectable)</div>
+        <p style="font-size:0.87rem; color:#a0a8b8; margin-bottom:14px;">
+          Resamples each carrier value from the upper (bit=1) or lower (bit=0) half of N(μ,σ)
+          via inverse Gaussian CDF. The latent distribution is preserved exactly.
+        </p>
+        <div class="metric-row"><span class="metric-label">Bit accuracy</span><span class="metric-val" style="color:#4ecb71">~88–92% (K=5–20)</span></div>
+        <div class="metric-row"><span class="metric-label">PSNR</span><span class="metric-val">~37–40 dB</span></div>
+        <div class="metric-row"><span class="metric-label">Detection AUC</span><span class="metric-val" style="color:#4ecb71">≈ 0.50 (chance)</span></div>
+        <div class="metric-row"><span class="metric-label">Blind decode</span><span class="metric-val" style="color:#4ecb71">Yes (no cover needed)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTS TABLE -->
+  <section>
+    <h2>Experimental Results</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>K (carriers)</th>
+          <th>Bit Accuracy</th>
+          <th>PSNR (dB)</th>
+          <th>Detection AUC</th>
+          <th>Post-hoc?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Original PatchSteg (ε=5)</td>
+          <td>20</td>
+          <td class="good">100%</td>
+          <td>29.4</td>
+          <td class="bad">0.93</td>
+          <td class="good">Yes</td>
+        </tr>
+        <tr>
+          <td>Original PatchSteg (ε=2)</td>
+          <td>20</td>
+          <td class="neutral">~90%</td>
+          <td>38+</td>
+          <td class="neutral">0.44</td>
+          <td class="good">Yes</td>
+        </tr>
+        <tr>
+          <td>CDF-PatchSteg</td>
+          <td>5</td>
+          <td class="good">92.5%</td>
+          <td class="good">40.3</td>
+          <td class="good">~0.50</td>
+          <td class="good">Yes</td>
+        </tr>
+        <tr>
+          <td>CDF-PatchSteg</td>
+          <td>10</td>
+          <td class="good">88.8%</td>
+          <td class="good">38.5</td>
+          <td class="good">~0.50</td>
+          <td class="good">Yes</td>
+        </tr>
+        <tr>
+          <td>CDF-PatchSteg</td>
+          <td>20</td>
+          <td class="good">88.1%</td>
+          <td>36.9</td>
+          <td class="good">~0.50</td>
+          <td class="good">Yes</td>
+        </tr>
+        <tr>
+          <td>PSyDUCK (prior SOTA)</td>
+          <td>N/A</td>
+          <td class="good">99.9%</td>
+          <td>—</td>
+          <td>—</td>
+          <td class="bad">No (generation-time)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.82rem; margin-top:8px; color:#606878;">
+      CDF-PatchSteg KS test on carrier values: p &gt; 0.05 (indistinguishable from N(μ,σ)).
+    </p>
+  </section>
+
+  <!-- HOW TO RUN -->
+  <section>
+    <h2>Running the Demo</h2>
+
+    <h3>Live Gradio UI (requires Python)</h3>
+    <pre>source ~/patchseg-venv/bin/activate
+python demo/app.py
+# Opens at http://localhost:7860</pre>
+
+    <p>Select the attack method in the UI, upload an image, type a hidden message, and click <strong>Run</strong>.</p>
+
+    <h3>Run SOTA experiment (CDF accuracy + detectability)</h3>
+    <pre>python experiments/cdf_capacity_test.py
+# Saves figures to paper/figures/cdf_*.png</pre>
+
+    <h3>Run all Phase 1–3 experiments</h3>
+    <pre>python experiments/cdf_capacity_test.py     # Phase 1: CDF steganography
+python experiments/pca_test.py              # Phase 2: PCA-guided directions
+python experiments/latent_detector_test.py  # Phase 3: Steganalysis detector</pre>
+  </section>
+
+  <!-- DEFENSE SECTION -->
+  <section>
+    <h2>Defense: UniversalPatchStegGuard</h2>
+    <p>
+      The demo also shows <strong>Joy's defense</strong> — <code>UniversalPatchStegGuard</code>
+      from the <code>openclaw</code> package. It uses latent anomaly scoring + spatial smoothing
+      to detect suspicious regions without a secret key.
+    </p>
+    <div class="cards">
+      <div class="card">
+        <div class="label">What it detects</div>
+        <h3>Original PatchSteg (±ε)</h3>
+        <p>Detects the statistical signature of directional perturbations. AUC &gt; 0.90 at ε=5.0.</p>
+      </div>
+      <div class="card">
+        <div class="label">What evades it</div>
+        <h3>CDF-PatchSteg</h3>
+        <p>Distribution-preserving encoding leaves no detectable anomaly in the latent space. This is the attack-defense narrative of the paper.</p>
+      </div>
+    </div>
+    <div class="warning" style="margin-top:20px;">
+      <strong>Defense gap:</strong> No current steganalysis method reliably detects CDF-PatchSteg.
+      This is an open problem and the main contribution of the threat model section.
+    </div>
+  </section>
+
+  <!-- PROJECT LINKS -->
+  <section>
+    <h2>Project Files</h2>
+    <table>
+      <thead>
+        <tr><th>File</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>core/cdf_steganography.py</code></td><td>CDFPatchSteg implementation</td></tr>
+        <tr><td><code>core/steganography.py</code></td><td>Original PatchSteg (±ε)</td></tr>
+        <tr><td><code>core/detector.py</code></td><td>LatentStegDetector — 46-feature steganalysis</td></tr>
+        <tr><td><code>demo/app.py</code></td><td>Gradio frontend (live demo)</td></tr>
+        <tr><td><code>experiments/cdf_capacity_test.py</code></td><td>CDF accuracy, KS test, detectability experiment</td></tr>
+        <tr><td><code>experiments/latent_detector_test.py</code></td><td>Cross-method detection matrix</td></tr>
+        <tr><td><code>paper/main.pdf</code></td><td>Full paper</td></tr>
+        <tr><td><code>CLAUDE.md</code></td><td>AI agent instructions (all teammates)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<footer>
+  PatchSteg &mdash; Hackathon Project &mdash; 2026 &nbsp;|&nbsp;
+  Run <code>python demo/app.py</code> for the live interactive version
+</footer>
+
+</body>
+</html>

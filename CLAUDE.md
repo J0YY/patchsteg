@@ -22,6 +22,56 @@ python experiments/cdf_capacity_test.py
 
 **Never `pip install` to system Python** — always activate the venv first or use `~/patchseg-venv/bin/python` directly.
 
+## Running the Demo
+
+```bash
+source ~/patchseg-venv/bin/activate
+python demo/app.py
+# Gradio UI at http://localhost:7860
+```
+
+The demo UI includes an **"Attack method"** radio selector:
+- **Original PatchSteg (±ε)** — classic perturbation; detectable at high ε (AUC ~0.93)
+- **CDF-PatchSteg (SOTA, undetectable)** — distribution-preserving; target AUC ≈ 0.5
+
+A static HTML summary for offline presentation: `demo/demo_summary.html`
+
+## Running SOTA Attacks
+
+### CDF-PatchSteg (Phase 1 — undetectable steganography)
+
+```bash
+source ~/patchseg-venv/bin/activate
+python experiments/cdf_capacity_test.py
+# Outputs: accuracy/PSNR/KS-test across K=5,10,20,50 carriers
+# Figures: paper/figures/cdf_capacity_curve.png, cdf_detectability.png, cdf_distribution.png
+```
+
+**What it does:** Replaces ±ε perturbation with inverse Gaussian CDF resampling. Each carrier
+value is replaced by a fresh sample from the upper (bit=1) or lower (bit=0) half of
+N(μ_channel, σ). The latent distribution is preserved exactly, so no statistical detector can
+distinguish stego from cover (theoretical AUC = 0.5).
+
+**Key novelty:** Post-hoc application to existing images — unlike Gaussian Shading, PRC, or
+PSyDUCK which all require generation-time noise seed control.
+
+### PCA-guided directions (Phase 2)
+
+```bash
+python experiments/pca_test.py
+# Figures: paper/figures/pca_components.png, pca_accuracy_comparison.png, pca_detectability.png
+```
+
+### Latent steganalysis detector (Phase 3 — defense side)
+
+```bash
+python experiments/latent_detector_test.py
+# Figures: paper/figures/detector_roc_curves.png, detector_cross_method.png, detector_feature_importance.png
+# Key finding: Detects original PatchSteg (AUC>0.90) but fails on CDF-PatchSteg (AUC≈0.5)
+```
+
+---
+
 ## Git Workflow (CRITICAL)
 
 ```
