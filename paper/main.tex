@@ -50,11 +50,11 @@ Our contributions:
 
 \section{Related Work}
 
-\textbf{Neural image steganography.} RoSteALS~\cite{bui2023rosteals} trains an encoder-decoder on top of a pretrained autoencoder latent space to hide messages robustly. More recent diffusion-time hiding and watermarking methods typically assume either control during generation or additional learned modules. In contrast, PatchSteg requires \emph{no training} and no generation-time control: it perturbs the latent representation of an already existing image before reconstruction.
+\textbf{Neural image steganography.} RoSteALS~\cite{bui2023rosteals} trains an encoder-decoder on top of a pretrained autoencoder latent space to hide messages robustly. PSyDUCK~\cite{psyduck2025} is the closest prior work: the first training-free steganography for latent diffusion models, achieving 99.91\% bit accuracy by diverging denoising trajectories with PRNG seeds. Critically, PSyDUCK and all other training-free methods require control over the \emph{initial diffusion noise}---they work during generation, not post-hoc. PatchSteg addresses the harder setting: embedding in \emph{existing} images the sender did not generate, with no training and no generation-time control.
 
 \textbf{AI agent collusion.} Motwani et al.~\cite{motwani2024secret} demonstrate that LLM agents can develop covert text channels undetectable by monitors. We extend this threat model to vision: agents sharing images can hide messages in the latent representation, invisible to pixel-level inspection.
 
-\textbf{Distribution-aware watermarking.} Gaussian Shading~\cite{yang2024gaussian} embeds watermarks in diffusion latents by partitioning the Gaussian prior via CDF thresholds. Stable Signature~\cite{fernandez2023stable} roots watermarks in latent diffusion via model fine-tuning, and Tree-Ring Watermarking~\cite{wen2023treering} embeds structured patterns in the Fourier domain of the initial noise. These methods motivate distribution-aware or model-aware hiding, but PatchSteg differs in operating on VAE latents of arbitrary carrier images rather than on a diffusion sampling trajectory.
+\textbf{Distribution-preserving watermarking.} Gaussian Shading~\cite{yang2024gaussian} embeds watermarks by partitioning the Gaussian prior via inverse CDF, achieving theoretical undetectability. Stable Signature~\cite{fernandez2023stable} roots watermarks via VAE fine-tuning. Tree-Ring Watermarking~\cite{wen2023treering} embeds patterns in the Fourier space of the initial noise. All such methods operate during generation by controlling the initial noise. \textbf{The critical gap:} our CDF-PatchSteg (Section~\ref{sec:cdf}) is the first distribution-preserving method for post-hoc VAE latent editing of existing images. The AGM analysis~\cite{agm2025} confirms that VAE decoder amplification of latent perturbations explains why perturbation-based methods are detectable, directly motivating our approach.
 
 \textbf{Autoencoder interpretability.} Our stability analysis connects to understanding VAE reconstruction fidelity. We show that reconstruction quality varies spatially within a single image, and that this variation is content-dependent---structured images (gradients, patches) exhibit more spatial variation in stability than noise. Rolinek et al.\ show that VAEs pursue PCA directions in their latent space~\cite{rolinek2019variational}, motivating our PCA-guided perturbation directions (Section~\ref{sec:pca}).
 
@@ -584,6 +584,12 @@ Fernandez, P., et al.
 Wen, Y., et al.
 \newblock Tree-Ring Watermarks: Fingerprints for Diffusion Images that are Invisible and Robust.
 \newblock \emph{NeurIPS}, 2023.
+
+\bibitem{psyduck2025}
+Jiang et al.\ PSyDUCK: Training-Free Steganography for Latent Diffusion Models. arXiv:2501.19172, 2025.
+
+\bibitem{agm2025}
+AGM: Autoencoder-Guided Watermark Detection. arXiv:2510.07219, 2025.
 
 \bibitem{rolinek2019variational}
 Rolinek, M., Zietlow, D., and Martius, G.

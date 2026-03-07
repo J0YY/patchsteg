@@ -23,6 +23,13 @@ Key papers for the PatchSteg project. Read these to understand the landscape.
 |------|-------|-------|----------------|
 | `vae_pca_directions_cvpr2019.pdf` | Variational Autoencoders Pursue PCA Directions (by Accident) (Rolinek et al.) | CVPR 2019 | **Theoretical basis for Phase 2 (PCA directions).** Shows VAE latent directions align with PCA of the data, explaining why PCA-guided perturbations follow natural variation. |
 
+## Closest Prior Work (MUST READ for novelty claims)
+
+| File | Paper | Venue | Why It Matters |
+|------|-------|-------|----------------|
+| *(no PDF yet)* | PSyDUCK: Training-Free Steganography for Latent Diffusion Models (Jiang et al.) | arXiv 2501.19172 / ICML 2025 sub | **Closest prior work.** First training-free latent-diffusion steganography (99.91% accuracy). Requires control over generation (PRNG seeds). Our key distinction: PatchSteg works post-hoc on existing images, which PSyDUCK cannot do. |
+| *(no PDF yet)* | AGM: Autoencoder-Guided Watermark Detection | arXiv 2510.07219, 2025 | Explains why perturbation-based methods are detectable: "VAE decoder amplifies latent perturbations into pixel artifacts." Directly motivates CDF-PatchSteg. |
+
 ## AI Safety / Threat Model
 
 | File | Paper | Venue | Why It Matters |
