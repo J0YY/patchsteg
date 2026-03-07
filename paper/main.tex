@@ -553,7 +553,28 @@ The PCA-guided direction idea in Section~\ref{sec:pca} is similarly exploratory.
 
 \subsection{Toward Active Defenses}
 
-Passive steganalysis is only one layer of defense. For representation-space channels, a more appropriate defense is \emph{inspect then sanitize}: score suspicious latent positions without knowing the shared seed, then suppress only those carriers before the image reaches the next model. Our current prototype follows this strategy by combining two seed-free cues: unusually large local latent deviations relative to a neighborhood, and unusually large drift under one additional VAE round-trip. The highest-scoring positions are then smoothed in latent space before decoding. We do not yet report benchmark numbers for this guard, but it is a better match to PatchSteg than classical pixel-domain countermeasures because it attacks the channel where it is encoded rather than after the perturbation has diffused into pixels.
+Passive steganalysis is only one layer of defense. For representation-space channels, a more appropriate defense is \emph{inspect then sanitize}: score suspicious latent positions without knowing the shared seed, then suppress only those carriers before the image reaches the next model.
+
+We evaluate \emph{CertifiedPurifier}, which independently estimates the stability map and resamples the top-$K$ high-stability positions from $\mathcal{N}(\mu_c, \sigma_c)$. Results on CDF-PatchSteg ($K{=}20$ carriers, $n{=}4$ images):
+
+\begin{table}[h]
+\centering
+\caption{CertifiedPurifier defense against CDF-PatchSteg. Accuracy is reduced but at significant PSNR cost; seed mismatch prevents the theoretical 50\% floor from being achieved.}
+\label{tab:purifier}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Defense strategy & Bit Acc.\ (\%) & PSNR (dB) & KS $p$ \\
+\midrule
+No defense (baseline) & 91.2 & --- & 0.18 \\
+Resample ($K{=}20$)   & 85.0 & 23.8 & 0.68 \\
+Noise ($\delta{=}0.3$) & 76.2 & 22.7 & --- \\
+Noise ($\delta{=}0.5$) & 73.8 & 17.8 & --- \\
+Combined              & 81.2 & 20.1 & 0.69 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The defense reduces accuracy by 6--17\% but incurs a large PSNR penalty (17--24\,dB) because it modifies all four latent channels at each purified position while CDF only modifies one. More critically, the stability map is \emph{seed-dependent}: the attacker's seed determines which positions appear most stable, so the defender's independently computed map does not perfectly overlap the carrier set. This \emph{seed mismatch} prevents the theoretical 50\% floor, revealing a fundamental asymmetry: attackers can shift their carrier set by changing their seed. Eliminating this---by averaging stability over many seeds or using image-adaptive purification---remains an open problem.
 
 \section{Discussion}
 
