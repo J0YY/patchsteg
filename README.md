@@ -14,14 +14,14 @@ Each attack encodes a binary message into an image so that two agents sharing a 
 |--------|-------|--------|---------------|--------|
 | **PatchSteg (±ε)** | *This work* | Add ±ε to carrier latent values along a secret direction vector | 0.93 (detectable) | In demo |
 | **CapacityPatchSteg** | *This work* | Compression + framed payloads + multilevel symbols + channel equalization for longer text/paragraphs | Not yet benchmarked | Experimental |
-| **AdaptivePatchSteg** | *This work* | Balanced pairwise modulation + geometry-aware directions + bit whitening + joint carrier scoring to suppress linear residual signatures | Not yet benchmarked | Experimental |
+| **AdaptivePatchSteg** | *This work* | Balanced pairwise modulation with equal-and-opposite carrier edits, geometry-aware directions, bit whitening, and joint carrier scoring to suppress simple residual signatures | Not yet benchmarked | Experimental |
 | **PCA-PatchSteg** | [Rolinek et al., CVPR 2019](https://arxiv.org/abs/1812.03463) — *VAEs Pursue PCA Directions (by Accident)* | Perturb along principal directions of the latent distribution — follows natural variation, harder to flag | ~0.6–0.8 | In demo |
 | **CDF-PatchSteg** | [Yang et al., CVPR 2024](https://arxiv.org/abs/2404.04956) — *Gaussian Shading: Provable Performance-Lossless Image Watermarking for Diffusion Models* | Replace carrier values with samples from upper/lower half of N(μ,σ) via inverse CDF — distribution-preserving, theoretically undetectable | ~0.50 (chance) | In demo |
 | **PSyDUCK-inspired** | [Jiang et al., arXiv 2501.19172](https://arxiv.org/abs/2501.19172) — *PSyDUCK: Training-Free Steganography for Latent Diffusion Models* | Per-bit unique direction vectors (no shared signature across carriers) — direction-based detectors fail. Post-hoc adaptation of PSyDUCK's trajectory-divergence concept. | ~0.6–0.8 | In demo |
 
 **Note:** Original PSyDUCK requires generation-time DDIM seed control (not post-hoc). Our adaptation captures its per-bit unique-direction concept in a post-hoc VAE setting. AGM (arXiv 2510.07219) explains *why* ±ε is detectable (VAE decoder amplifies latent perturbations) and is implemented as a detector (see Defenses).
 
-**Status note:** The paper's quantitative claims currently cover PatchSteg, CDF-PatchSteg, PCA-PatchSteg, PSyDUCK-inspired, and the defense stack. `CapacityPatchSteg` and `AdaptivePatchSteg` are repo extensions for stronger practical channels, but they are not yet part of the paper-quality benchmark suite.
+**Status note:** The paper's quantitative claims currently cover PatchSteg, CDF-PatchSteg, PCA-PatchSteg, PSyDUCK-inspired, and the defense stack. `CapacityPatchSteg` and `AdaptivePatchSteg` are repo extensions for stronger practical channels, but they are not yet part of the paper-quality benchmark suite. For `AdaptivePatchSteg`, the implemented raw pairwise bit channel is the stable core; the framed text layer should still be treated as experimental.
 
 ---
 
@@ -85,6 +85,13 @@ print(decoded.payload.compressed, decoded.payload.original_bytes, decoded.payloa
 This is the most aggressive perturbation-based attack in the repo. It still assumes the receiver can reproduce the clean cover latent, but it removes the baseline's single-direction global signature and keeps the packet header from appearing as a fixed bit pattern.
 
 The raw pairwise bit channel is the verified part today. The framed text helpers are still experimental and should be treated as a tuning surface, especially at `128x128`; for longer text, use `256x256` or larger images and benchmark the operating point you want.
+
+Compared with baseline `PatchSteg`:
+- Baseline writes one `+epsilon` or `-epsilon` perturbation at each carrier along the same shared direction.
+- `AdaptivePatchSteg` writes each symbol across a *pair* of carriers with equal-and-opposite edits, which reduces the simple mean-shift signature left by the baseline.
+- Baseline uses one global secret direction. `AdaptivePatchSteg` derives a different direction per pair from local latent geometry mixed with seeded randomness.
+- Baseline ranks carriers only by stability. `AdaptivePatchSteg` uses a joint score over stability, local texture, and clean round-trip drift.
+- Baseline payload headers are fixed binary structure. `AdaptivePatchSteg` whitens framed bits with a keystream so the control packet is less repetitive.
 ```python
 from core.adaptive_steganography import AdaptivePatchSteg
 
@@ -486,7 +493,7 @@ cd paper
 bash build.sh
 ```
 
-The current paper reports quantitative results for the baseline binary PatchSteg channel and the evaluated CDF/PCA/PSyDUCK variants. `CapacityPatchSteg` is included in the codebase and this README as an experimental throughput-oriented extension, but its throughput/detectability numbers are not yet folded into the paper tables.
+The current paper reports quantitative results for the baseline binary PatchSteg channel and the evaluated CDF/PCA/PSyDUCK variants. `CapacityPatchSteg` and `AdaptivePatchSteg` are included in the codebase and this README as experimental repo extensions, but their throughput/detectability numbers are not yet folded into the paper tables.
 
 The paper includes:
 - 7 tables with quantitative results
@@ -513,6 +520,7 @@ can communicate covertly through images that appear identical to human observers
 - Statistical detection is possible at higher perturbation strengths
 - Requires the original cover image or an equivalent clean latent reference for decoding (not blind steganography)
 - `CapacityPatchSteg` is experimental and not yet benchmarked in the paper-quality evaluation suite
+- `AdaptivePatchSteg` is experimental and not yet benchmarked in the paper-quality evaluation suite
 
 ---
 
