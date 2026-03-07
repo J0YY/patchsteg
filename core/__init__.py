@@ -1,4 +1,12 @@
-"""Core PatchSteg exports."""
+"""Core PatchSteg exports.
+
+Structure:
+  core/attacks/   — attack methods (PatchSteg, CDF, PCA, PSyDUCK, Capacity)
+  core/defenses/  — defense methods (sanitizers, detectors, purifiers, probes)
+  core/vae.py     — VAE backbone (shared)
+  core/metrics.py — evaluation metrics (shared)
+  core/analysis.py — latent analysis utilities (shared)
+"""
 
 from importlib import import_module
 
@@ -14,14 +22,14 @@ __all__ = [
 ]
 
 _EXPORT_MAP = {
-    "CapacityPatchSteg": "core.capacity_steganography",
-    "CDFPatchSteg": "core.cdf_steganography",
-    "PayloadCodec": "core.payload_codec",
-    "PCADirections": "core.pca_directions",
-    "PCAPatchSteg": "core.pca_directions",
-    "PSyDUCKSteg": "core.psyduck_steganography",
-    "PatchSteg": "core.steganography",
-    "StegoVAE": "core.vae",
+    "CapacityPatchSteg": "core.attacks.capacity_steganography",
+    "CDFPatchSteg":      "core.attacks.cdf_steganography",
+    "PayloadCodec":      "core.attacks.payload_codec",
+    "PCADirections":     "core.attacks.pca_directions",
+    "PCAPatchSteg":      "core.attacks.pca_directions",
+    "PSyDUCKSteg":       "core.attacks.psyduck_steganography",
+    "PatchSteg":         "core.attacks.steganography",
+    "StegoVAE":          "core.vae",
 }
 
 
