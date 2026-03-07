@@ -38,6 +38,9 @@ claude_report.txt
 *.swp
 *.swo
 
+# Build tools
+tectonic
+
 # Paper build artifacts (PDF is committed intentionally)
 paper/*.aux
 paper/*.log
