@@ -1,0 +1,10 @@
+torch>=2.0
+diffusers>=0.25
+transformers
+Pillow
+numpy
+matplotlib
+gradio>=4.0
+scikit-learn
+scikit-image
+scipy
