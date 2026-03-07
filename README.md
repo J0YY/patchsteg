@@ -44,34 +44,31 @@ The VAE's KL regularization creates a locally smooth, approximately invertible l
 ```
 patchsteg/
 ├── core/                          # Core library
-│   ├── vae.py                     # StegoVAE: SD VAE wrapper with proper scaling
-│   ├── steganography.py           # PatchSteg: encoding, decoding, carrier selection
-│   ├── analysis.py                # Mechanistic analysis (channel importance, error maps)
+│   ├── vae.py                     # StegoVAE: SD VAE wrapper
+│   ├── steganography.py           # PatchSteg: ±epsilon encoding
+│   ├── cdf_steganography.py       # CDFPatchSteg: distribution-preserving encoding
+│   ├── pca_directions.py          # PCA-guided perturbation directions
+│   ├── detector.py                # Latent-space steganalysis detector (46 features)
+│   ├── analysis.py                # Mechanistic analysis helpers
 │   └── metrics.py                 # PSNR, SSIM, bit accuracy
 │
 ├── experiments/                   # Reproducible experiment scripts
-│   ├── carrier_stability.py       # Stability map computation and visualization
-│   ├── capacity_test.py           # Capacity vs quality tradeoff
-│   ├── robustness_test.py         # JPEG, noise, resize robustness
-│   ├── detectability_test.py      # Statistical detectability analysis
-│   ├── mechanistic_analysis.py    # Channel importance, error correlation
-│   ├── extended_experiments.py    # Natural photos, longer messages, LSB baseline, theory
-│   ├── generate_figures.py        # Publication-quality figure generation
-│   ├── run_all.py                 # Run all experiments sequentially
-│   └── run_remaining.py           # Run subset of experiments
+│   ├── cdf_capacity_test.py       # CDF accuracy, KS test, detectability
+│   ├── pca_test.py                # PCA directions analysis
+│   ├── latent_detector_test.py    # Cross-method detection matrix
+│   ├── v2_*.py                    # V2 experiments (multi-model, deployment, etc.)
+│   └── *.py                       # V1 experiments (stability, capacity, etc.)
 │
 ├── paper/                         # LaTeX paper
 │   ├── main.tex                   # Full paper source
-│   ├── main.pdf                   # Compiled PDF
 │   ├── build.sh                   # Build script (uses tectonic)
-│   └── figures/                   # All generated figures (18 PNGs)
+│   └── figures/                   # All generated figures
 │
-├── demo/                          # Interactive demo
-│   └── app.py                     # Gradio app (encode/decode/analyze)
-│
-├── roundtrip_test.py              # Initial validation test
+├── references/                    # Key research papers (PDFs + INDEX.md)
+├── demo/                          # Gradio interactive demo
 ├── requirements.txt               # Python dependencies
-└── EXPERIMENT_LOG.md              # Detailed experiment results log
+├── CLAUDE.md                      # AI agent instructions (read by Claude Code)
+└── EXPERIMENT_LOG.md              # Experiment results log
 ```
 
 ---
@@ -179,22 +176,22 @@ python demo/app.py
 
 ## Experiments
 
-### Running all experiments
+### Running experiments
 
 ```bash
 conda activate patchsteg
 
-# Run the initial round-trip validation
-python roundtrip_test.py
+# V1 core experiments
+python experiments/run_remaining.py        # Robustness, mechanistic, detectability
+python experiments/extended_experiments.py  # Natural photos, messages, LSB, theory
 
-# Run core experiments (carrier stability, capacity, robustness, detectability, mechanistic)
-python experiments/run_remaining.py
+# V2 expanded experiments
+python experiments/v2_run_all.py           # Multi-model, deployment, content science
 
-# Run extended experiments (natural photos, longer messages, LSB baseline, theory)
-python experiments/extended_experiments.py
-
-# Generate publication figures
-python experiments/generate_figures.py
+# Phase 1-3 (new)
+python experiments/cdf_capacity_test.py    # CDF distribution-preserving steganography
+python experiments/pca_test.py             # PCA-guided perturbation directions
+python experiments/latent_detector_test.py # Latent-space steganalysis detector
 ```
 
 ### Experiment Summary
@@ -206,11 +203,10 @@ python experiments/generate_figures.py
 | Capacity analysis | `capacity_test.py` | Up to 500 bits at 99.4% raw accuracy |
 | Robustness | `robustness_test.py` | Survives JPEG Q=50, noise σ=0.01 |
 | Detectability | `detectability_test.py` | AUC ranges from 0.44 (ε=1) to 0.97 (ε=10) |
-| Mechanistic analysis | `mechanistic_analysis.py` | All 4 channels contribute equally; recon error ≠ stability |
 | Natural photographs | `extended_experiments.py` | 98.8% accuracy on CIFAR-10 images |
-| Message stress test | `extended_experiments.py` | 152-bit messages at 100% accuracy |
-| LSB comparison | `extended_experiments.py` | PatchSteg ε=2 stealthier than LSB (AUC 0.35 vs 0.65) |
-| Theoretical analysis | `extended_experiments.py` | Perturbation/noise ratio explains detectability threshold |
+| **CDF-PatchSteg** | `cdf_capacity_test.py` | Distribution-preserving encoding (target AUC≈0.5) |
+| **PCA directions** | `pca_test.py` | Data-driven perturbation directions from latent PCA |
+| **Steganalysis detector** | `latent_detector_test.py` | 46-feature detector + cross-method eval matrix |
 
 ---
 

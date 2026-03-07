@@ -1,6 +1,46 @@
+# Python
 __pycache__/
 *.pyc
-.DS_Store
-cifar-10-*
+*.pyo
 *.egg-info/
+dist/
+build/
+*.so
+
+# Environments
 .venv/
+venv/
+env/
+.conda/
+
+# Node (not needed — this is a Python project)
+node_modules/
+package.json
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data / caches
+cifar-10-*
+*.pt
+*.ckpt
+/tmp/
+
+# Local artifacts (don't share these)
+claude_report.txt
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Paper build artifacts (PDF is committed intentionally)
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.synctex*
