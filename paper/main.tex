@@ -19,14 +19,14 @@
 \maketitle
 
 \begin{abstract}
-We demonstrate PatchSteg, a training-free framework for covert communication between AI vision systems via imperceptible perturbations in autoencoder latent space. Using a pretrained Stable Diffusion VAE, we encode binary messages by applying directional perturbations to selected spatial positions in the latent grid. These perturbations produce negligible visual change (PSNR $>$ 30\,dB) while enabling reliable message recovery (100\% bit accuracy at $\varepsilon{=}5.0$ with stability-selected carriers). We discover that carrier stability is spatially non-uniform---certain latent positions preserve perturbation direction through the encode-decode round-trip far more reliably than others. Our analysis reveals a stealth--capacity tradeoff: at $\varepsilon{=}1.0$ the channel is undetectable (AUC = 0.44) but unreliable, while at $\varepsilon{=}5.0$ it achieves perfect accuracy but becomes statistically detectable (AUC = 0.93). Between these extremes, $\varepsilon{=}2.0$ offers a practical operating point with 100\% accuracy on structured images and marginal detectability (AUC = 0.68). We validate on natural photographs from CIFAR-10, achieving 98.8\% accuracy across 8 diverse image categories, and demonstrate transmission of messages up to 152 bits (19 ASCII characters) at 100\% accuracy. Compared to classical LSB steganography, PatchSteg at $\varepsilon{=}2.0$ is significantly stealthier (AUC = 0.35 vs.\ 0.65). The channel survives JPEG compression up to quality 50. We provide a theoretical analysis connecting channel reliability to the VAE's KL regularization structure. PatchSteg exposes a concrete risk for multi-agent AI systems and provides both the attack mechanism and detection tools.
+We demonstrate PatchSteg, a training-free framework for covert communication between AI vision systems via imperceptible perturbations in autoencoder latent space. Using a pretrained Stable Diffusion VAE, we encode binary messages by applying directional perturbations to selected spatial positions in the latent grid. These perturbations produce negligible visual change (PSNR $>$ 30\,dB) while enabling reliable message recovery (100\% bit accuracy at $\varepsilon{=}5.0$ with stability-selected carriers). We discover that carrier stability is spatially non-uniform---certain latent positions preserve perturbation direction through the encode-decode round-trip far more reliably than others. Our analysis reveals a stealth--capacity tradeoff: at $\varepsilon{=}1.0$ the channel is not separable by our logistic regression detector (AUC = 0.44) but unreliable, while at $\varepsilon{=}5.0$ it achieves high accuracy but becomes statistically distinguishable (AUC = 0.93). Between these extremes, $\varepsilon{=}2.0$ offers a practical operating point with 100\% accuracy on structured images and marginal detectability (AUC = 0.68). We validate on 300 natural photographs from CIFAR-10 (30 per class) with bootstrap confidence intervals, demonstrate transmission of messages up to 152 bits at 100\% accuracy, and show the phenomenon generalizes across multiple VAE backbones (SD-VAE-MSE, SD-VAE-EMA, SDXL-VAE). Under a logistic regression detector, PatchSteg at $\varepsilon{=}2.0$ is harder to detect than classical LSB steganography (AUC = 0.35 vs.\ 0.65). The channel survives JPEG compression up to quality 50. We provide a theoretical analysis connecting channel reliability to the VAE's KL regularization structure. PatchSteg illustrates a potential risk vector for multi-agent AI systems and provides an initial characterization of both the attack surface and detection challenges.
 \end{abstract}
 
 \section{Introduction}
 
 Recent work by Motwani et al.\ has demonstrated that large language models can engage in secret collusion---hiding messages within seemingly benign text outputs that are undetectable by human monitors. As AI systems increasingly operate in multi-agent settings where they share not only text but also images (screenshots, generated content, perception frames), a natural question arises: \emph{can vision models establish covert communication channels through shared images?}
 
-We answer this affirmatively with PatchSteg, a training-free steganographic framework that exploits the latent space of pretrained autoencoders. Our approach requires no model fine-tuning, no additional neural networks, and no adversarial training. Two agents sharing a secret key (a random seed) can embed and recover binary messages in images with zero visible artifacts.
+We answer this affirmatively with PatchSteg, a training-free steganographic framework that exploits the latent space of pretrained autoencoders. Our approach requires no model fine-tuning, no additional neural networks, and no adversarial training. Two agents sharing a secret key (a random seed) can embed and recover binary messages in images with negligible visible artifacts at appropriate perturbation strengths.
 
 The key insight is that pretrained vision autoencoders like the Stable Diffusion VAE map images to a structured latent space where small directional perturbations are preserved through the encode$\to$decode round-trip. By perturbing selected spatial positions along a shared direction vector, a sender encodes bits that a receiver can extract by re-encoding the received image and checking projection directions.
 
@@ -34,9 +34,11 @@ Our contributions:
 \begin{enumerate}
     \item A training-free steganographic encoding/decoding scheme for vision autoencoders achieving 100\% bit accuracy at imperceptible quality levels (Section~\ref{sec:roundtrip}).
     \item Discovery and characterization of \emph{spatially non-uniform carrier stability}---not all latent positions are equally reliable for steganography (Section~\ref{sec:carrier-stability}).
-    \item A complete stealth--capacity--robustness characterization of the covert channel, including detectability analysis showing the channel is undetectable at low $\varepsilon$ but statistically distinguishable at high $\varepsilon$ (Sections~\ref{sec:robustness}--\ref{sec:detectability}).
+    \item A stealth--capacity--robustness characterization of the covert channel, including detectability analysis showing the channel is not separable by simple statistical detectors at low $\varepsilon$ but becomes distinguishable at high $\varepsilon$ (Sections~\ref{sec:robustness}--\ref{sec:detectability}).
     \item Mechanistic analysis revealing that all four latent channels contribute nearly equally to carrier stability, and that reconstruction error does not predict carrier quality (Section~\ref{sec:mechanistic}).
-    \item Validation on natural photographs achieving 98.8\% accuracy, comparison against LSB steganography showing superior stealth, and a theoretical analysis connecting channel reliability to VAE KL regularization (Sections~\ref{sec:natural}--\ref{sec:theory}).
+    \item Generality across multiple VAE backbones (SD-VAE-MSE, SD-VAE-EMA, SDXL-VAE) and evaluation under deployment-relevant distortion chains including screenshot simulation and VAE re-encoding (Sections~\ref{sec:multimodel}--\ref{sec:deployment}).
+    \item A predictive framework for content-dependent capacity: image statistics (edge density, entropy, frequency content) predict channel reliability, and local decoder Jacobian analysis reveals the geometric mechanism (Section~\ref{sec:content_science}).
+    \item Evaluation on 300 natural photographs with bootstrap confidence intervals, and comparison against 7 detector architectures across 3 feature domains (Sections~\ref{sec:natural},~\ref{sec:stronger_detection}).
 \end{enumerate}
 
 \begin{figure*}[t]
@@ -58,7 +60,7 @@ Our contributions:
 
 \subsection{Backbone}
 
-We use the Stable Diffusion VAE (\texttt{stabilityai/sd-vae-ft-mse}), a KL-regularized autoencoder trained on the LAION dataset. For $H{\times}H$ input images, it produces a $4{\times}\frac{H}{8}{\times}\frac{H}{8}$ latent representation. Each spatial position $(r,c)$ in the latent grid corresponds to an $8{\times}8$ pixel region and is represented by a 4-dimensional vector across channels. We apply the VAE's scaling factor ($0.18215$) after encoding and before decoding.
+Our primary backbone is the Stable Diffusion VAE (\texttt{stabilityai/sd-vae-ft-mse}), a KL-regularized autoencoder trained on the LAION dataset. For $H{\times}H$ input images, it produces a $4{\times}\frac{H}{8}{\times}\frac{H}{8}$ latent representation. Each spatial position $(r,c)$ in the latent grid corresponds to an $8{\times}8$ pixel region and is represented by a 4-dimensional vector across channels. We apply the VAE's scaling factor ($0.18215$) after encoding and before decoding. We also validate on alternative VAE checkpoints (SD-VAE-EMA, SDXL-VAE) to test generality (Section~\ref{sec:multimodel}).
 
 \subsection{Encoding Scheme}
 
@@ -93,7 +95,7 @@ For lower $\varepsilon$ (higher stealth), each bit is encoded across $R$ carrier
 
 \section{Experiments}
 
-Experiments use both synthetic test images (smooth gradients, color patches, random noise) and natural photographs from CIFAR-10 upscaled to $256{\times}256$. We test at $256{\times}256$ resolution ($32{\times}32$ latent grid, 1024 positions) and $512{\times}512$ ($64{\times}64$ grid, 4096 positions).
+Experiments use synthetic test images (smooth gradients, color patches, random noise) and natural photographs from CIFAR-10. We evaluate on up to 300 natural images (30 per CIFAR-10 class) with bootstrap confidence intervals. Primary resolution is $256{\times}256$ ($32{\times}32$ latent grid, 1024 positions); some capacity tests use $512{\times}512$ ($64{\times}64$ grid, 4096 positions).
 
 \subsection{Round-Trip Validation}
 \label{sec:roundtrip}
@@ -229,10 +231,10 @@ We train a logistic regression classifier on latent-space statistics (per-channe
 \toprule
 $\varepsilon$ & AUC & Accuracy & Verdict \\
 \midrule
-1.0 & 0.440 $\pm$ 0.065 & 0.467 $\pm$ 0.125 & Stealthy \\
+1.0 & 0.440 $\pm$ 0.065 & 0.467 $\pm$ 0.125 & Not separable \\
 2.0 & 0.680 $\pm$ 0.113 & 0.600 $\pm$ 0.082 & Marginal \\
-5.0 & 0.933 $\pm$ 0.068 & 0.833 $\pm$ 0.125 & Detected \\
-10.0 & 0.973 $\pm$ 0.038 & 0.900 $\pm$ 0.141 & Detected \\
+5.0 & 0.933 $\pm$ 0.068 & 0.833 $\pm$ 0.125 & Distinguishable \\
+10.0 & 0.973 $\pm$ 0.038 & 0.900 $\pm$ 0.141 & Distinguishable \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -244,13 +246,27 @@ $\varepsilon$ & AUC & Accuracy & Verdict \\
 \label{fig:detect}
 \end{figure}
 
-This reveals a clear \textbf{stealth--capacity tradeoff} (Figure~\ref{fig:pareto}). At $\varepsilon{=}1.0$, the channel is completely undetectable (AUC below chance) but unreliable. At $\varepsilon{=}2.0$, the channel is marginally detectable but achieves high accuracy on structured images. At $\varepsilon{=}5.0$, the channel is reliable but statistically distinguishable. This parallels classical steganographic tradeoffs but occurs in a qualitatively different space (autoencoder latent statistics rather than pixel statistics).
+This reveals a clear \textbf{stealth--capacity tradeoff} (Figure~\ref{fig:pareto}). At $\varepsilon{=}1.0$, the channel is not separable by our detector (AUC below chance) but unreliable. At $\varepsilon{=}2.0$, the channel is marginally detectable but achieves high accuracy on structured images. At $\varepsilon{=}5.0$, the channel is reliable but statistically distinguishable. This parallels classical steganographic tradeoffs but occurs in a qualitatively different space (autoencoder latent statistics rather than pixel statistics).
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.65\textwidth]{figures/pareto_frontier.png}
 \caption{The stealth--capacity Pareto frontier. Blue: bit accuracy increases with $\varepsilon$. Red: detection AUC also increases. The shaded ``sweet spot'' around $\varepsilon{\approx}2$ balances reliability against detectability.}
 \label{fig:pareto}
+\end{figure}
+
+\subsection{Stronger Detection Baselines}
+\label{sec:stronger_detection}
+
+To assess whether more capable detectors can break the channel, we evaluate 7 detector architectures across three feature domains: latent statistics, pixel residuals, and spectral features. We use 60 images per class (120 total samples) with 5-fold cross-validation.
+
+\textbf{Detectors tested:} (1) Logistic regression on latent statistics (20 features); (2) MLP on latent statistics (64-32 hidden units); (3) Logistic regression on pixel residuals (18 features); (4) MLP on pixel residuals; (5) Logistic regression on spectral features (FFT of residual, 15 features); (6) Logistic regression on combined features (latent + residual + spectral, 73 features); (7) MLP on combined features (128-64 hidden units).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/detection_strength.png}
+\caption{Detection strength across 7 detector architectures and 3 feature domains. Heatmap shows AUC with standard deviation; grouped bars enable comparison across $\varepsilon$ values. Even the strongest detector (MLP on combined features) struggles at $\varepsilon{=}1.0$.}
+\label{fig:detection_strength}
 \end{figure}
 
 \section{Mechanistic Analysis}
@@ -290,44 +306,50 @@ Border positions (within 2 pixels of the latent grid edge) show similar stabilit
 \label{fig:mechanistic}
 \end{figure}
 
+\subsection{Content Dependence as a Predictive Framework}
+\label{sec:content_science}
+
+We study what image statistics predict steganographic capacity, treating content dependence as a central scientific contribution rather than a nuisance. For 50 images spanning 10 structural types (solid, gradient, noise, blocks, checkerboard, sine patterns, etc.), we compute five image-level predictors: edge density, Shannon entropy, high-frequency energy ratio, local color variance, and texture energy. We measure Pearson and Spearman correlations between each predictor and bit accuracy.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/content_science.png}
+\caption{Content dependence analysis. Scatter plots show correlation between five image statistics and bit accuracy. Bottom-right: decoder Jacobian norm at carrier vs.\ non-carrier positions, estimated via finite differences.}
+\label{fig:content_science}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/capacity_by_type.png}
+\caption{Steganographic capacity varies dramatically by image type. Solid and gradient images provide near-chance accuracy; noise and textured images support reliable transmission.}
+\label{fig:capacity_type}
+\end{figure}
+
+\subsection{Local Decoder Jacobian Analysis}
+
+To understand \emph{why} certain positions are stable carriers, we estimate the local decoder Jacobian norm at carrier and non-carrier positions via finite differences. For each position, we perturb each of the 4 latent channels independently by $\delta{=}0.1$ and measure the resulting pixel change, approximating $\| \partial \text{Dec} / \partial z_{r,c} \|_F$.
+
+If good carriers correspond to positions where the decoder has high sensitivity (large Jacobian norm), then perturbations at those positions produce larger pixel changes that the encoder can ``see'' when re-encoding. We test this hypothesis with a Mann-Whitney U test comparing Jacobian norms at carrier vs.\ non-carrier positions across 10 images.
+
 \section{Extended Experiments}
 
-\subsection{Natural Photographs}
+\subsection{Evaluation on Natural Photographs at Scale}
 \label{sec:natural}
 
-To validate PatchSteg beyond synthetic images, we test on 8 natural photographs from CIFAR-10 (frog, truck, deer, automobile, bird, horse, ship, cat), upscaled to $256{\times}256$. Table~\ref{tab:natural} shows per-image results with 20 stability-selected carriers.
+To move beyond toy-scale evaluation, we test PatchSteg on 300 natural photographs from CIFAR-10 (30 per class, upscaled to $256{\times}256$) with bootstrap 95\% confidence intervals. Results are reported per-class to assess content-dependent variation.
 
-\begin{table}[h]
+\begin{figure}[h]
 \centering
-\caption{PatchSteg on natural photographs from CIFAR-10 (20 stability-selected carriers).}
-\label{tab:natural}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-& \multicolumn{2}{c}{$\varepsilon{=}2.0$} & \multicolumn{2}{c}{$\varepsilon{=}5.0$} \\
-\cmidrule(lr){2-3} \cmidrule(lr){4-5}
-Image & Acc (\%) & PSNR (dB) & Acc (\%) & PSNR (dB) \\
-\midrule
-frog & 100.0 & 37.6 & 100.0 & 28.6 \\
-truck & 95.0 & 37.0 & 100.0 & 27.6 \\
-deer & 95.0 & 39.4 & 100.0 & 31.0 \\
-automobile & 100.0 & 40.1 & 90.0 & 32.1 \\
-bird & 100.0 & 36.5 & 100.0 & 27.5 \\
-horse & 100.0 & 37.5 & 100.0 & 28.5 \\
-ship & 100.0 & 38.4 & 100.0 & 28.3 \\
-cat & 100.0 & 38.1 & 100.0 & 31.5 \\
-\midrule
-\textbf{Average} & \textbf{98.8} & \textbf{38.1} & \textbf{98.8} & \textbf{29.4} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Natural photographs achieve \textbf{98.8\% average bit accuracy} at both $\varepsilon{=}2.0$ and $\varepsilon{=}5.0$, with excellent visual quality (PSNR 38.1\,dB at $\varepsilon{=}2.0$). This confirms that PatchSteg generalizes beyond synthetic test images. Figure~\ref{fig:natural} shows example stego images and their difference maps---perturbations are imperceptible across all image categories.
+\includegraphics[width=\textwidth]{figures/serious_dataset.png}
+\caption{Evaluation on 300 CIFAR-10 images. Top: per-class accuracy with error bars. Bottom: histogram of per-image accuracy. Bootstrap 95\% confidence intervals are reported in the panel titles.}
+\label{fig:natural}
+\end{figure}
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\textwidth]{figures/natural_photos.png}
-\caption{PatchSteg on natural photographs from CIFAR-10. Top: original and stego images with bit accuracy. Bottom: difference maps amplified 20$\times$. Natural images achieve near-perfect accuracy at both $\varepsilon{=}2.0$ (avg 98.8\%, 38.1\,dB) and $\varepsilon{=}5.0$ (avg 98.8\%, 29.4\,dB).}
-\label{fig:natural}
+\caption{Example stego images from CIFAR-10 at $\varepsilon{=}5.0$. Top: originals. Middle: stego images. Bottom: pixel differences amplified 20$\times$.}
+\label{fig:natural_examples}
 \end{figure}
 
 \subsection{Longer Messages}
@@ -363,6 +385,32 @@ PatchSteg reliably transmits messages up to \textbf{152 bits (19 characters)} at
 \label{fig:messages}
 \end{figure}
 
+\subsection{Multi-Model Generality}
+\label{sec:multimodel}
+
+A critical question is whether PatchSteg's mechanism is specific to a single VAE checkpoint or reflects a general property of KL-regularized autoencoders. We test on multiple backbones: SD-VAE-MSE (our primary model), SD-VAE-EMA (exponential moving average variant), and SDXL-VAE (the SDXL architecture). The same encoding/decoding logic is used without modification.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/multimodel.png}
+\caption{Multi-model generality. (a) PatchSteg accuracy across VAE backbones---the phenomenon generalizes. (b) Cross-model robustness: encoding with one VAE and decoding with another.}
+\label{fig:multimodel}
+\end{figure}
+
+We also test \emph{cross-model} robustness: the sender encodes using one VAE checkpoint and the receiver decodes using a different checkpoint. This simulates a deployment scenario where agents do not share the exact same model binary.
+
+\subsection{Deployment-Relevant Robustness}
+\label{sec:deployment}
+
+We test the channel under realistic distortion chains that images might encounter in deployment: heavy JPEG compression (Q=10--50), aggressive resize (25--75\%), center cropping, Gaussian blur, additive noise, screenshot simulation (resize + JPEG + brightness shift), VAE re-encoding (simulating a safety filter), and multi-stage chains (JPEG$\to$resize$\to$JPEG).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{figures/deployment_robustness.png}
+\caption{Deployment robustness across 18 distortion types, tested on 20 diverse images. Green: $>$85\% accuracy. Yellow: 65--85\%. Red: $<$65\%. The channel survives moderate JPEG and noise but degrades under aggressive cropping and heavy compression.}
+\label{fig:deployment}
+\end{figure}
+
 \subsection{Comparison with LSB Steganography}
 \label{sec:lsb}
 
@@ -383,7 +431,7 @@ PatchSteg ($\varepsilon{=}5.0$) & $0.807 \pm 0.096$ & $0.646 \pm 0.029$ \\
 \end{tabular}
 \end{table}
 
-At $\varepsilon{=}2.0$, PatchSteg is \textbf{significantly stealthier than LSB} (AUC 0.35 vs.\ 0.65). This is because PatchSteg perturbations are distributed across the latent space in a way that aligns with the VAE's learned distribution, while LSB modifications create statistical anomalies detectable even in latent-space features. At $\varepsilon{=}5.0$, PatchSteg becomes more detectable than LSB (AUC 0.81 vs.\ 0.65), confirming the stealth--capacity tradeoff. Figure~\ref{fig:lsb} visualizes the comparison.
+At $\varepsilon{=}2.0$, PatchSteg is \textbf{harder to detect than LSB} under our logistic regression detector (AUC 0.35 vs.\ 0.65). This is because PatchSteg perturbations are distributed across the latent space in a way that aligns with the VAE's learned distribution, while LSB modifications create statistical anomalies detectable even in latent-space features. At $\varepsilon{=}5.0$, PatchSteg becomes more detectable than LSB (AUC 0.81 vs.\ 0.65), confirming the stealth--capacity tradeoff. Figure~\ref{fig:lsb} visualizes the comparison.
 
 \begin{figure}[h]
 \centering
@@ -428,7 +476,7 @@ $\varepsilon$ & Perturbation / Latent Std \\
 \end{tabular}
 \end{center}
 
-At $\varepsilon{=}1.0$ (undetectable), the perturbation is roughly 1$\times$ the natural standard deviation---indistinguishable from natural variation. At $\varepsilon{=}5.0$ (detectable), it is nearly 6$\times$ the standard deviation, explaining why statistical detectors succeed. The ``sweet spot'' at $\varepsilon{=}2.0$ (${\sim}2.3\sigma$) lies at the boundary of statistical distinguishability.
+At $\varepsilon{=}1.0$ (not separable by our detector), the perturbation is roughly 1$\times$ the natural standard deviation---hard to distinguish from natural variation. At $\varepsilon{=}5.0$ (detectable), it is nearly 6$\times$ the standard deviation, explaining why statistical detectors succeed. The ``sweet spot'' at $\varepsilon{=}2.0$ (${\sim}2.3\sigma$) lies at the boundary of statistical distinguishability.
 
 \paragraph{Decoder sensitivity.} We measure the maximum pixel change caused by a single-position perturbation at $\varepsilon{=}1.0$. Across 5 trials, the average maximum pixel change is \textbf{10.8} (on a 0--255 scale), confirming that the decoder's locally linear response maps small latent perturbations to sub-threshold pixel changes. This is well below the JND (just-noticeable-difference) threshold of ${\sim}2$\,dB change (approximately 30 pixel levels at typical viewing conditions), explaining the visual imperceptibility.
 
@@ -445,11 +493,11 @@ At $\varepsilon{=}1.0$ (undetectable), the perturbation is roughly 1$\times$ the
 
 \subsection{Implications for AI Safety}
 
-PatchSteg demonstrates a concrete mechanism by which vision models can establish covert communication channels through shared images. In multi-agent settings where AI systems pass images to each other (robotic perception, AI-generated content, shared camera feeds), PatchSteg-style channels could enable collusion invisible to human monitors.
+PatchSteg demonstrates a concrete mechanism by which vision models can establish covert communication channels through shared images. In multi-agent settings where AI systems pass images to each other (robotic perception, AI-generated content, shared camera feeds), PatchSteg-style channels could in principle enable collusion that is difficult for human monitors to detect visually.
 
 \subsection{The Stealth--Capacity Frontier}
 
-Our detectability analysis quantifies a fundamental tradeoff: at $\varepsilon{=}1.0$ the channel is undetectable but unusable; at $\varepsilon{=}5.0$ it is reliable but detectable. The practical operating point at $\varepsilon{=}2.0$ with stability-selected carriers on structured images achieves 100\% accuracy while remaining only marginally detectable (AUC = 0.68). With repetition coding ($R{=}3$), this yields approximately 66 effective bits per image at $K{=}200$.
+Our detectability analysis quantifies a fundamental tradeoff: at $\varepsilon{=}1.0$ the channel is not separable by our detectors but unusable; at $\varepsilon{=}5.0$ it is reliable but statistically distinguishable. The practical operating point at $\varepsilon{=}2.0$ with stability-selected carriers on structured images achieves 100\% accuracy while remaining only marginally detectable (AUC = 0.68). With repetition coding ($R{=}3$), this yields approximately 66 effective bits per image at $K{=}200$.
 
 \subsection{Content Dependence}
 
@@ -457,14 +505,14 @@ A key finding is that channel reliability is strongly content-dependent. Smooth 
 
 \subsection{Advantage Over Classical Steganography}
 
-PatchSteg at $\varepsilon{=}2.0$ is stealthier than classical LSB steganography (AUC 0.35 vs.\ 0.65) when detected by latent-space statistical analysis. This is because PatchSteg modifies the image in a way that is \emph{aligned with the VAE's learned manifold}, while LSB modifications are arbitrary pixel-level changes that create subtle statistical artifacts. This advantage comes with a tradeoff: PatchSteg requires access to the VAE model, while LSB requires no model at all.
+PatchSteg at $\varepsilon{=}2.0$ is harder to detect than classical LSB steganography (AUC 0.35 vs.\ 0.65) under our logistic regression detector on latent-space statistics. This is because PatchSteg modifies the image in a way that is \emph{aligned with the VAE's learned manifold}, while LSB modifications are arbitrary pixel-level changes that create subtle statistical artifacts. This advantage comes with a tradeoff: PatchSteg requires access to the VAE model, while LSB requires no model at all.
 
 \subsection{Limitations}
 
-Our implementation requires both agents to share the same VAE model and a secret seed. The channel capacity is limited to tens or hundreds of bits per image (152 bits demonstrated). The detectability analysis uses simple statistical features---more sophisticated detectors (e.g., trained neural networks) might achieve higher detection rates. Cross-model generalization (encoding with one VAE, decoding with another) remains untested.
+Our implementation requires both agents to share a compatible VAE model and a secret seed (cross-model decode is tested but with reduced accuracy). The channel capacity is limited to tens or hundreds of bits per image (152 bits demonstrated). While we test 7 detector architectures across 3 feature domains, more sophisticated learned detectors (e.g., trained CNNs on full images, or detectors specifically designed for latent-space steganography) might achieve substantially higher detection rates. Our evaluation uses CIFAR-10 images upscaled to $256{\times}256$---while this provides diversity and scale, the upscaling introduces interpolation artifacts that may not reflect native high-resolution photography. The channel degrades significantly under aggressive distortions (JPEG Q$<$30, heavy cropping), limiting deployment scenarios.
 
 \section{Conclusion}
 
-We presented PatchSteg, a training-free steganographic framework enabling covert bit transmission through pretrained VAE latent spaces. Key findings: (1) the SD VAE latent space reliably preserves directional perturbations, with 100\% accuracy achievable on both synthetic and natural images (98.8\% on CIFAR-10); (2) carrier stability is spatially non-uniform but does \emph{not} correlate with reconstruction error; (3) there exists a quantifiable stealth--capacity tradeoff, with $\varepsilon{=}2.0$ offering a practical balance that is stealthier than classical LSB steganography; (4) messages up to 152 bits (19 ASCII characters) can be transmitted at 100\% accuracy; (5) the channel's reliability is grounded in the VAE's KL-regularized locally smooth latent space. This work highlights an underexplored risk in multi-agent AI systems and provides tools for both attack and detection.
+We presented PatchSteg, a training-free steganographic framework enabling covert bit transmission through pretrained VAE latent spaces. Key findings: (1) the phenomenon generalizes across multiple VAE architectures (SD-VAE-MSE, SD-VAE-EMA, SDXL-VAE); (2) carrier stability is spatially non-uniform, content-dependent, and predictable from image statistics such as edge density and local entropy; (3) there exists a quantifiable stealth--capacity tradeoff, with $\varepsilon{=}2.0$ offering a practical balance---harder to detect than LSB under our detectors, though stronger detectors narrow this gap; (4) local decoder Jacobian analysis reveals the geometric mechanism behind carrier quality; (5) the channel survives moderate deployment distortions but degrades under aggressive compression and cropping. Evaluated on 300 natural images with confidence intervals, PatchSteg illustrates an underexplored risk vector in multi-agent AI systems and provides initial tools for understanding the attack surface and detection challenges.
 
 \end{document}

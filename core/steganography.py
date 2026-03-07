@@ -115,6 +115,18 @@ class PatchSteg:
             decoded.append(1 if sum(chunk) > reps // 2 else 0)
         return decoded
 
+    def scrub_message(self, latent, carriers, strength=1.0):
+        """
+        Neutralize the shared PatchSteg direction at the selected carriers.
+        This is a PatchSteg-aware sanitization primitive for demo or defense flows.
+        """
+        latent_scrubbed = latent.clone()
+        direction_dev = self.direction.to(latent.device)
+        for (r, c) in carriers:
+            projection = torch.dot(latent_scrubbed[0, :, r, c], direction_dev)
+            latent_scrubbed[0, :, r, c] -= strength * projection * direction_dev
+        return latent_scrubbed
+
     @staticmethod
     def text_to_bits(text):
         """Convert ASCII text to list of bits."""

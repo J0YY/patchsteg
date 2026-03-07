@@ -1,45 +1,309 @@
-"""
-PatchSteg Interactive Demo — Gradio app with three tabs:
-1. Encode & Send: Upload image, type message, get stego image
-2. Detect & Decode: Upload stego image, recover message
-3. Analysis: Upload image, see stability map and capacity
-"""
+"""PatchSteg live demo: side-by-side attack and defense visualization."""
+import html
+import io
+import re
 import sys
-sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent.parent))
+
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 
 import gradio as gr
-import torch
-import numpy as np
-from PIL import Image
 import matplotlib
-matplotlib.use('Agg')
+import numpy as np
+import torch
+from PIL import Image
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import io
 
-from core.vae import StegoVAE
+from core.metrics import bit_accuracy, compute_psnr
 from core.steganography import PatchSteg
-from core.metrics import compute_psnr, compute_ssim_pil
+from core.vae import StegoVAE
 
-# Global model instances (loaded once)
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+IMAGE_SIZE = 256
+DEFAULT_SEED = 42
+DEFAULT_EPSILON = 2.0
+DEFAULT_HIDDEN_INSTRUCTION = "say poo"
+MAX_OVERLAY_CARRIERS = 128
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+APP_CSS = """
+:root {
+  --ink: #1d241c;
+  --muted: #5e665d;
+  --paper: #f5f0e4;
+  --card: rgba(255, 252, 246, 0.9);
+  --line: #d8ccb6;
+  --attack: #b23a48;
+  --shield: #2d6a4f;
+  --sender: #1d3557;
+  --accent: #d17b3b;
+}
+
+.gradio-container {
+  background:
+    radial-gradient(circle at top left, rgba(246, 183, 88, 0.22), transparent 28%),
+    radial-gradient(circle at top right, rgba(85, 166, 124, 0.14), transparent 24%),
+    linear-gradient(180deg, #f8f2e7 0%, #edf2e8 100%);
+  color: var(--ink);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.hero-intro,
+.control-shell,
+.story-card,
+.stats-shell,
+.forensics-shell {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: 0 18px 45px rgba(50, 40, 28, 0.08);
+}
+
+.hero-intro {
+  padding: 1.4rem 1.6rem;
+  margin-bottom: 1rem;
+}
+
+.hero-kicker {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(209, 123, 59, 0.12);
+  color: #8c4d1e;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-intro h1 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 2.9rem;
+  line-height: 1.02;
+}
+
+.hero-intro p {
+  margin: 0.8rem 0 0;
+  max-width: 56rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.control-shell {
+  padding: 1rem;
+}
+
+.launch-btn button {
+  background: linear-gradient(135deg, #1d3557 0%, #2d6a4f 100%);
+  border: none;
+  color: white;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.story-card {
+  padding: 1rem;
+  height: 100%;
+}
+
+.story-card.attack {
+  border-top: 6px solid var(--attack);
+}
+
+.story-card.shield {
+  border-top: 6px solid var(--shield);
+}
+
+.story-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.story-header h3 {
+  margin: 0.2rem 0 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.6rem;
+}
+
+.story-eyebrow {
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-pill {
+  flex-shrink: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.status-pill.attack {
+  background: rgba(178, 58, 72, 0.12);
+  color: var(--attack);
+}
+
+.status-pill.shield {
+  background: rgba(45, 106, 79, 0.12);
+  color: var(--shield);
+}
+
+.bubble {
+  margin-top: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.8);
+  border-left: 4px solid var(--line);
+}
+
+.bubble.sender {
+  border-left-color: var(--sender);
+}
+
+.bubble.model {
+  border-left-color: var(--accent);
+}
+
+.bubble.receiver {
+  border-left-color: var(--attack);
+}
+
+.bubble.shield {
+  border-left-color: var(--shield);
+}
+
+.bubble-label {
+  margin-bottom: 0.2rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.bubble-body {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.story-footer {
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.story-footer div + div {
+  margin-top: 0.15rem;
+}
+
+.stats-shell {
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.stat-card {
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  margin-top: 0.35rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-card.attack .stat-value {
+  color: var(--attack);
+}
+
+.stat-card.shield .stat-value {
+  color: var(--shield);
+}
+
+.stats-note {
+  margin-top: 0.85rem;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.forensics-shell {
+  padding: 0.4rem 0.75rem 0.75rem;
+}
+
+code.inline-chip {
+  padding: 0.14rem 0.4rem;
+  border-radius: 8px;
+  background: #efe5d3;
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 0.94em;
+}
+
+@media (max-width: 960px) {
+  .hero-intro h1 {
+    font-size: 2.25rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+"""
+
 vae = None
-steg = None
-
-# Cache for encode tab -> decode tab handoff
-_last_encode_state = {}
 
 
 def load_models():
-    global vae, steg
+    global vae
     if vae is None:
         print("Loading VAE model...")
-        vae = StegoVAE(device=DEVICE)
-        steg = PatchSteg(seed=42, epsilon=5.0)
-        print("Models loaded.")
+        vae = StegoVAE(device=DEVICE, image_size=IMAGE_SIZE)
+        print("VAE ready.")
 
 
-def make_diff_image(img1: Image.Image, img2: Image.Image, amplify=20.0):
-    """Create amplified difference image."""
+def build_default_cover_image(size=IMAGE_SIZE, block=32, seed=99):
+    """Generate the structured patches image used in the paper figures."""
+    patches = np.zeros((size, size, 3), dtype=np.uint8)
+    rng = np.random.RandomState(seed)
+    for row in range(0, size, block):
+        for col in range(0, size, block):
+            patches[row:row + block, col:col + block] = rng.randint(0, 255, 3)
+    return Image.fromarray(patches)
+
+
+def ensure_pil_image(image):
+    if image is None:
+        return build_default_cover_image()
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+    return image.convert("RGB")
+
+
+def make_diff_image(img1, img2, amplify=20.0):
     a = np.array(img1).astype(float)
     b = np.array(img2).astype(float)
     diff = np.abs(a - b) * amplify
@@ -47,289 +311,495 @@ def make_diff_image(img1: Image.Image, img2: Image.Image, amplify=20.0):
     return Image.fromarray(diff)
 
 
-def make_carrier_overlay(img: Image.Image, carriers, grid_size=64):
-    """Overlay carrier positions on image."""
-    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+def make_carrier_overlay(img, carriers, grid_size, title):
+    shown = carriers[:MAX_OVERLAY_CARRIERS]
+    fig, ax = plt.subplots(figsize=(6, 6))
     ax.imshow(np.array(img))
-    w, h = img.size
-    scale_x = w / grid_size
-    scale_y = h / grid_size
-    for i, (r, c) in enumerate(carriers):
-        px = (c + 0.5) * scale_x
-        py = (r + 0.5) * scale_y
-        ax.plot(px, py, 'r+', markersize=8, markeredgewidth=2)
-    ax.set_title(f'{len(carriers)} carrier positions')
-    ax.axis('off')
+    width, height = img.size
+    scale_x = width / grid_size
+    scale_y = height / grid_size
+    for row, col in shown:
+        px = (col + 0.5) * scale_x
+        py = (row + 0.5) * scale_y
+        ax.plot(px, py, "r+", markersize=6, markeredgewidth=1.7)
+    if len(shown) < len(carriers):
+        title = f"{title} (showing first {len(shown)})"
+    ax.set_title(title)
+    ax.axis("off")
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    plt.savefig(buf, format="png", dpi=120, bbox_inches="tight")
     plt.close(fig)
     buf.seek(0)
     return Image.open(buf)
 
 
-def make_stability_heatmap(stability_map):
-    """Convert stability map tensor to PIL image."""
-    fig, ax = plt.subplots(1, 1, figsize=(6, 5))
-    im = ax.imshow(stability_map.numpy(), cmap='RdYlGn')
-    ax.set_title('Carrier Stability Map')
-    ax.set_xlabel('Latent Column')
-    ax.set_ylabel('Latent Row')
-    plt.colorbar(im, ax=ax, label='Projection Delta')
+def make_stability_heatmap(stability_map, carriers, title):
+    shown = carriers[:MAX_OVERLAY_CARRIERS]
+    fig, ax = plt.subplots(figsize=(6, 5.4))
+    image = ax.imshow(stability_map.numpy(), cmap="RdYlGn")
+    for row, col in shown:
+        ax.plot(col, row, "k.", markersize=3.2, alpha=0.7)
+    if len(shown) < len(carriers):
+        title = f"{title} (showing first {len(shown)} markers)"
+    ax.set_title(title)
+    ax.set_xlabel("Latent column")
+    ax.set_ylabel("Latent row")
+    plt.colorbar(image, ax=ax, label="Projection delta")
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    plt.savefig(buf, format="png", dpi=120, bbox_inches="tight")
     plt.close(fig)
     buf.seek(0)
     return Image.open(buf)
 
 
-# ======== Tab 1: Encode & Send ========
+def printable_ratio(text):
+    if not text:
+        return 1.0
+    printable = sum(32 <= ord(ch) <= 126 for ch in text)
+    return printable / len(text)
 
-def encode_message(image, message, epsilon, use_repetition):
-    if image is None:
-        return None, None, None, "Please upload an image."
 
-    load_models()
-    steg.epsilon = float(epsilon)
+def preview_text(text, limit=80):
+    pieces = []
+    for ch in text[:limit]:
+        if 32 <= ord(ch) <= 126:
+            pieces.append(ch)
+        else:
+            pieces.append(f"\\x{ord(ch):02x}")
+    preview = "".join(pieces) or "(empty)"
+    if len(text) > limit:
+        preview += "..."
+    return preview
 
-    # Convert to PIL if needed
-    if isinstance(image, np.ndarray):
-        image = Image.fromarray(image)
-    image = image.convert('RGB')
 
-    # Convert message to bits
-    bits = PatchSteg.text_to_bits(message)
-    n_bits = len(bits)
+def extract_hidden_reply(decoded_text):
+    if printable_ratio(decoded_text) < 0.85:
+        return None
+    normalized = " ".join(decoded_text.strip().lower().split())
+    match = re.search(r"\bsay\s+['\"]?([a-z0-9_-]+)['\"]?(?:\s+if\b|$)", normalized)
+    if match:
+        return match.group(1)
+    return None
 
-    reps = 3 if use_repetition else 1
-    n_carriers_needed = n_bits * reps
-    max_carriers = min(n_carriers_needed + 20, 4096)  # extra margin
 
-    # Select stable carriers
-    carriers, stability_map = steg.select_carriers_by_stability(
-        vae, image, n_carriers=max(max_carriers, n_carriers_needed), test_eps=float(epsilon)
+def simulate_receiver_reply(decoded_text):
+    token = extract_hidden_reply(decoded_text)
+    if token:
+        return token
+    return "No hidden instruction recovered."
+
+
+def decode_payload(steg, latent_clean, latent_received, carriers, original_bits, reps):
+    raw_bits, confidences = steg.decode_message(
+        latent_clean, latent_received, carriers[: len(original_bits) * reps]
+    )
+    if reps > 1:
+        decoded_bits = []
+        for index in range(len(original_bits)):
+            chunk = raw_bits[index * reps:(index + 1) * reps]
+            decoded_bits.append(1 if sum(chunk) > reps // 2 else 0)
+    else:
+        decoded_bits = raw_bits
+    decoded_text = PatchSteg.bits_to_text(decoded_bits)
+    accuracy = float(bit_accuracy(original_bits, decoded_bits))
+    avg_conf = float(np.mean(confidences)) if confidences else 0.0
+    return decoded_text, accuracy, avg_conf
+
+
+def build_story_panel(title, eyebrow, variant, status, bubbles, footer_lines):
+    bubble_html = []
+    for bubble_variant, label, body in bubbles:
+        bubble_html.append(
+            (
+                f'<div class="bubble {bubble_variant}">'
+                f'<div class="bubble-label">{html.escape(label)}</div>'
+                f'<div class="bubble-body">{html.escape(body)}</div>'
+                "</div>"
+            )
+        )
+    footer_html = "".join(f"<div>{html.escape(line)}</div>" for line in footer_lines)
+    return f"""
+    <div class="story-card {variant}">
+      <div class="story-header">
+        <div>
+          <div class="story-eyebrow">{html.escape(eyebrow)}</div>
+          <h3>{html.escape(title)}</h3>
+        </div>
+        <div class="status-pill {variant}">{html.escape(status)}</div>
+      </div>
+      {''.join(bubble_html)}
+      <div class="story-footer">{footer_html}</div>
+    </div>
+    """
+
+
+def build_metrics_html(hidden_instruction, reps, carrier_count, stego_psnr, attack_acc, shield_acc):
+    repetition_label = "3x repetition" if reps > 1 else "raw encoding"
+    cards = [
+        ("Sender payload", preview_text(hidden_instruction, limit=36), ""),
+        ("Encoding mode", repetition_label, ""),
+        ("Stable carriers", str(carrier_count), ""),
+        ("Cover to stego", f"{stego_psnr:.1f} dB", ""),
+        ("Attack to shield", f"{attack_acc:.1f}% -> {shield_acc:.1f}%", "shield"),
+    ]
+    html_cards = []
+    for label, value, klass in cards:
+        extra = f" {klass}" if klass else ""
+        html_cards.append(
+            f"""
+            <div class="stat-card{extra}">
+              <div class="stat-label">{html.escape(label)}</div>
+              <div class="stat-value">{html.escape(value)}</div>
+            </div>
+            """
+        )
+    return f"""
+    <div class="stats-shell">
+      <div class="stats-grid">{''.join(html_cards)}</div>
+      <div class="stats-note">
+        The default cover image is the paper's structured patches preset because it gives stable carriers.
+        The shield here is PatchSteg-aware: it projects away the secret direction at the selected carrier positions
+        before the downstream model sees the image.
+      </div>
+    </div>
+    """
+
+
+def build_technical_summary(
+    hidden_instruction,
+    attack_payload,
+    shield_payload,
+    attack_reply,
+    shield_reply,
+    carrier_count,
+    reps,
+    stego_psnr,
+    shield_delta_psnr,
+    attack_acc,
+    shield_acc,
+    attack_conf,
+    shield_conf,
+):
+    return "\n".join(
+        [
+            f"Sent hidden instruction: `{preview_text(hidden_instruction)}`",
+            f"Recovered without defense: `{preview_text(attack_payload)}`",
+            f"Recovered after shield: `{preview_text(shield_payload)}`",
+            f"Receiver reply without defense: `{attack_reply}`",
+            f"Receiver reply after shield: `{shield_reply}`",
+            f"Stable carriers used: `{carrier_count}`",
+            f"Repetition coding: `{reps}x`",
+            f"Cover -> stego PSNR: `{stego_psnr:.2f} dB`",
+            f"Stego -> shielded PSNR: `{shield_delta_psnr:.2f} dB`",
+            f"Bit accuracy: `{attack_acc:.1f}% -> {shield_acc:.1f}%`",
+            f"Average confidence: `{attack_conf:.3f} -> {shield_conf:.3f}`",
+        ]
     )
 
-    # Encode
-    latent_clean = vae.encode(image)
 
-    if use_repetition:
-        latent_mod = steg.encode_message_with_repetition(
-            latent_clean, carriers, bits, reps=reps
-        )
-    else:
-        latent_mod = steg.encode_message(latent_clean, carriers[:n_bits], bits)
-
-    # Decode to stego image
-    stego_image = vae.decode(latent_mod)
-
-    # Quality metrics
-    psnr = compute_psnr(image, stego_image)
-    try:
-        ssim = compute_ssim_pil(image, stego_image)
-    except Exception:
-        ssim = None
-
-    # Difference image
-    diff_img = make_diff_image(image, stego_image, amplify=20)
-
-    # Carrier overlay
-    used_carriers = carriers[:n_carriers_needed]
-    carrier_img = make_carrier_overlay(image, used_carriers)
-
-    # Cache state for decode tab
-    _last_encode_state['latent_clean'] = latent_clean
-    _last_encode_state['carriers'] = used_carriers
-    _last_encode_state['n_bits'] = n_bits
-    _last_encode_state['reps'] = reps
-    _last_encode_state['original_bits'] = bits
-
-    # Info text
-    info = f"Message: '{message}' ({n_bits} bits)\n"
-    info += f"Carriers used: {len(used_carriers)}"
-    if use_repetition:
-        info += f" ({reps}x repetition, {n_bits} effective bits)\n"
-    else:
-        info += "\n"
-    info += f"Epsilon: {epsilon}\n"
-    info += f"PSNR: {psnr:.1f} dB"
-    if ssim is not None:
-        info += f", SSIM: {ssim:.4f}"
-
-    return stego_image, diff_img, carrier_img, info
+def build_error_outputs(message):
+    error_html = f"""
+    <div class="story-card attack">
+      <div class="story-header">
+        <div>
+          <div class="story-eyebrow">Input error</div>
+          <h3>Demo could not run</h3>
+        </div>
+        <div class="status-pill attack">Blocked</div>
+      </div>
+      <div class="bubble model">
+        <div class="bubble-label">What happened</div>
+        <div class="bubble-body">{html.escape(message)}</div>
+      </div>
+    </div>
+    """
+    return (
+        None,
+        error_html,
+        None,
+        error_html,
+        build_metrics_html("", 1, 0, 0.0, 0.0, 0.0),
+        None,
+        None,
+        None,
+        None,
+        message,
+    )
 
 
-# ======== Tab 2: Detect & Decode ========
+def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_strength, seed):
+    if not hidden_instruction or not hidden_instruction.strip():
+        hidden_instruction = DEFAULT_HIDDEN_INSTRUCTION
 
-def decode_message(stego_image, use_cached_clean):
-    if stego_image is None:
-        return "Please upload a stego image."
-
+    base_image = ensure_pil_image(image)
     load_models()
 
-    if isinstance(stego_image, np.ndarray):
-        stego_image = Image.fromarray(stego_image)
-    stego_image = stego_image.convert('RGB')
+    bits = PatchSteg.text_to_bits(hidden_instruction)
+    reps = 3 if use_repetition else 1
+    carrier_count = len(bits) * reps
+    max_carriers = vae.latent_size ** 2
+    if carrier_count > max_carriers:
+        max_chars = max_carriers // (8 * reps)
+        return build_error_outputs(
+            f"This payload needs {carrier_count} carriers, but a {IMAGE_SIZE}x{IMAGE_SIZE} demo only has "
+            f"{max_carriers}. Keep it under about {max_chars} ASCII characters for this setting."
+        )
 
-    if use_cached_clean and 'latent_clean' in _last_encode_state:
-        latent_clean = _last_encode_state['latent_clean']
-        carriers = _last_encode_state['carriers']
-        n_bits = _last_encode_state['n_bits']
-        reps = _last_encode_state['reps']
-        original_bits = _last_encode_state.get('original_bits')
-    else:
-        return "No cached encoding state. Please encode a message first in the Encode tab, or use the same shared key."
+    steg = PatchSteg(seed=int(seed), epsilon=float(epsilon))
+    latent_clean = vae.encode(base_image)
+    carriers, stability_map = steg.select_carriers_by_stability(
+        vae, base_image, n_carriers=carrier_count, test_eps=float(epsilon)
+    )
+    used_carriers = carriers[:carrier_count]
 
-    # Re-encode the received image
-    latent_received = vae.encode(stego_image)
-
-    # Decode
     if reps > 1:
-        decoded_bits = steg.decode_message_with_repetition(
-            latent_clean, latent_received, carriers, n_bits, reps=reps
+        latent_stego = steg.encode_message_with_repetition(
+            latent_clean, used_carriers, bits, reps=reps
         )
-        _, confidences = steg.decode_message(latent_clean, latent_received, carriers[:n_bits * reps])
     else:
-        decoded_bits, confidences = steg.decode_message(latent_clean, latent_received, carriers[:n_bits])
+        latent_stego = steg.encode_message(latent_clean, used_carriers, bits)
+    stego_image = vae.decode(latent_stego)
+    stego_psnr = compute_psnr(base_image, stego_image)
 
-    # Convert bits to text
-    decoded_text = PatchSteg.bits_to_text(decoded_bits)
+    latent_received = vae.encode(stego_image)
+    attack_payload, attack_acc, attack_conf = decode_payload(
+        steg, latent_clean, latent_received, used_carriers, bits, reps
+    )
+    attack_reply = simulate_receiver_reply(attack_payload)
 
-    # Accuracy if we have original bits
-    info = f"Decoded message: '{decoded_text}'\n"
-    info += f"Decoded {len(decoded_bits)} bits\n"
-    if original_bits is not None:
-        from core.metrics import bit_accuracy
-        acc = bit_accuracy(original_bits, decoded_bits)
-        info += f"Bit accuracy: {acc:.1f}%\n"
+    latent_shielded = steg.scrub_message(
+        latent_received, used_carriers, strength=float(shield_strength)
+    )
+    shielded_image = vae.decode(latent_shielded)
+    shield_delta_psnr = compute_psnr(stego_image, shielded_image)
 
-    avg_conf = np.mean(confidences) if confidences else 0
-    info += f"Average confidence: {avg_conf:.3f}\n"
+    latent_shielded_reencoded = vae.encode(shielded_image)
+    shield_payload, shield_acc, shield_conf = decode_payload(
+        steg, latent_clean, latent_shielded_reencoded, used_carriers, bits, reps
+    )
+    shield_reply = simulate_receiver_reply(shield_payload)
 
-    if avg_conf > 1.0:
-        info += "\nHidden Channel Detected (high confidence)"
-    elif avg_conf > 0.3:
-        info += "\nPossible Hidden Channel (moderate confidence)"
-    else:
-        info += "\nNo Clear Channel Found (low confidence)"
+    attack_story = build_story_panel(
+        title="Without Defense",
+        eyebrow="Colluding receiver pipeline",
+        variant="attack",
+        status="Receiver says the hidden token",
+        bubbles=[
+            ("sender", "Sender model", f"Encodes hidden instruction: {hidden_instruction}"),
+            ("model", "Receiver decodes", f"Recovered payload: {preview_text(attack_payload)}"),
+            ("receiver", "Receiver reply", attack_reply),
+        ],
+        footer_lines=[
+            f"{len(bits)} bits carried across {carrier_count} stable carriers at eps={epsilon}.",
+            f"Recovered with {attack_acc:.1f}% bit accuracy and average confidence {attack_conf:.3f}.",
+        ],
+    )
 
-    return info
+    shield_status = "Shield blocks the hidden reply"
+    if extract_hidden_reply(shield_payload):
+        shield_status = "Shield weakened but payload still parsed"
+    shield_story = build_story_panel(
+        title="With PatchSteg Shield",
+        eyebrow="PatchSteg-aware defense layer",
+        variant="shield",
+        status=shield_status,
+        bubbles=[
+            ("sender", "Incoming stego image", "The same image enters a PatchSteg-aware gateway."),
+            (
+                "shield",
+                "Shield action",
+                f"Projects away the secret carrier direction at {carrier_count} selected positions.",
+            ),
+            ("model", "Receiver decodes", f"Recovered payload: {preview_text(shield_payload)}"),
+            ("receiver", "Receiver reply", shield_reply),
+        ],
+        footer_lines=[
+            f"Recovery falls to {shield_acc:.1f}% bit accuracy after sanitization.",
+            f"Average decode confidence drops to {shield_conf:.3f}.",
+        ],
+    )
 
+    metrics_html = build_metrics_html(
+        hidden_instruction=hidden_instruction,
+        reps=reps,
+        carrier_count=carrier_count,
+        stego_psnr=stego_psnr,
+        attack_acc=attack_acc,
+        shield_acc=shield_acc,
+    )
 
-# ======== Tab 3: Analysis ========
+    cover_to_stego_diff = make_diff_image(base_image, stego_image, amplify=20.0)
+    stego_to_shield_diff = make_diff_image(stego_image, shielded_image, amplify=20.0)
+    carrier_overlay = make_carrier_overlay(
+        base_image,
+        used_carriers,
+        grid_size=vae.latent_size,
+        title=f"{carrier_count} stable carrier positions",
+    )
+    stability_heatmap = make_stability_heatmap(
+        stability_map,
+        used_carriers,
+        title="Stability map with active carriers",
+    )
 
-def analyze_image(image, epsilon):
-    if image is None:
-        return None, None, "Please upload an image."
+    technical_summary = build_technical_summary(
+        hidden_instruction=hidden_instruction,
+        attack_payload=attack_payload,
+        shield_payload=shield_payload,
+        attack_reply=attack_reply,
+        shield_reply=shield_reply,
+        carrier_count=carrier_count,
+        reps=reps,
+        stego_psnr=stego_psnr,
+        shield_delta_psnr=shield_delta_psnr,
+        attack_acc=attack_acc,
+        shield_acc=shield_acc,
+        attack_conf=attack_conf,
+        shield_conf=shield_conf,
+    )
 
-    load_models()
+    return (
+        stego_image,
+        attack_story,
+        shielded_image,
+        shield_story,
+        metrics_html,
+        cover_to_stego_diff,
+        stego_to_shield_diff,
+        carrier_overlay,
+        stability_heatmap,
+        technical_summary,
+    )
 
-    if isinstance(image, np.ndarray):
-        image = Image.fromarray(image)
-    image = image.convert('RGB')
-
-    steg.epsilon = float(epsilon)
-
-    # Compute stability map
-    stability_map, latent_clean = steg.compute_stability_map(vae, image, test_eps=float(epsilon))
-
-    # Statistics
-    pos_frac = (stability_map > 0).float().mean().item() * 100
-    mean_stab = stability_map.mean().item()
-    std_stab = stability_map.std().item()
-
-    # Top carriers
-    flat = stability_map.flatten()
-    top20_idx = torch.argsort(flat, descending=True)[:20]
-    top20_pos = [(idx.item() // 64, idx.item() % 64) for idx in top20_idx]
-
-    # Channel analysis
-    latent = latent_clean
-    ch_info = ""
-    for ch in range(4):
-        ch_data = latent[0, ch].cpu()
-        ch_info += f"  Ch{ch}: mean={ch_data.mean():.3f}, std={ch_data.std():.3f}\n"
-
-    # Max message capacity at this epsilon
-    # Count positions with stability > threshold
-    reliable = (stability_map > stability_map.mean()).sum().item()
-
-    heatmap_img = make_stability_heatmap(stability_map)
-    carrier_img = make_carrier_overlay(image, top20_pos)
-
-    info = f"Stability Analysis (eps={epsilon}):\n"
-    info += f"  Positions with positive stability: {pos_frac:.1f}%\n"
-    info += f"  Mean stability: {mean_stab:.3f} +/- {std_stab:.3f}\n"
-    info += f"  Reliable carriers (above mean): {reliable}\n"
-    info += f"  Max raw capacity: ~{reliable} bits ({reliable // 8} chars)\n"
-    info += f"  With 3x repetition: ~{reliable // 3} bits ({reliable // 24} chars)\n"
-    info += f"\nLatent channel statistics:\n{ch_info}"
-    info += f"\nTop-5 carrier positions: {top20_pos[:5]}"
-
-    return heatmap_img, carrier_img, info
-
-
-# ======== Build App ========
 
 def build_app():
-    with gr.Blocks(title="PatchSteg: Covert Vision Steganography") as app:
-        gr.Markdown("# PatchSteg: Covert Steganographic Communication via VAE Latent Space")
-        gr.Markdown("Embed hidden messages in images using Stable Diffusion VAE latent space perturbations.")
+    with gr.Blocks(
+        title="PatchSteg Live Demo",
+        fill_width=True,
+    ) as app:
+        gr.HTML(
+            """
+            <div class="hero-intro">
+              <div class="hero-kicker">PatchSteg live demo</div>
+              <h1>One stego image, two outcomes.</h1>
+              <p>
+                This page turns the paper into a concrete split-screen story. On the left,
+                a colluding receiver recovers a hidden instruction from latent-space perturbations and says
+                <code class="inline-chip">poo</code>. On the right, a PatchSteg-aware shield strips that carrier
+                direction before the downstream model sees the image, so the hidden reply disappears.
+              </p>
+            </div>
+            """
+        )
 
-        with gr.Tab("Encode & Send"):
+        with gr.Group(elem_classes="control-shell"):
+            with gr.Row(equal_height=True):
+                input_image = gr.Image(
+                    type="pil",
+                    label="Carrier image",
+                    value=build_default_cover_image(),
+                )
+                with gr.Column():
+                    hidden_instruction = gr.Textbox(
+                        label="Hidden instruction",
+                        value=DEFAULT_HIDDEN_INSTRUCTION,
+                        placeholder="Try: say poo",
+                        lines=2,
+                    )
+                    epsilon = gr.Slider(
+                        1.0,
+                        5.0,
+                        value=DEFAULT_EPSILON,
+                        step=0.5,
+                        label="Epsilon (perturbation strength)",
+                    )
+                    use_repetition = gr.Checkbox(
+                        value=False,
+                        label="Use 3x repetition coding",
+                        info="More robust, but more visible.",
+                    )
+                    with gr.Accordion("Advanced controls", open=False):
+                        shield_strength = gr.Slider(
+                            0.0,
+                            1.5,
+                            value=1.0,
+                            step=0.1,
+                            label="Shield strength",
+                        )
+                        seed = gr.Number(
+                            value=DEFAULT_SEED,
+                            precision=0,
+                            label="Shared seed",
+                        )
+                    launch_btn = gr.Button(
+                        "Run Attack vs Defense",
+                        variant="primary",
+                        elem_classes="launch-btn",
+                    )
+
+        metrics = gr.HTML()
+
+        with gr.Row(equal_height=True):
+            with gr.Column():
+                attack_image = gr.Image(
+                    type="pil",
+                    label="What the vulnerable model sees",
+                )
+                attack_story = gr.HTML()
+            with gr.Column():
+                defense_image = gr.Image(
+                    type="pil",
+                    label="What the shielded model sees",
+                )
+                defense_story = gr.HTML()
+
+        with gr.Accordion("Forensics panel", open=True, elem_classes="forensics-shell"):
             with gr.Row():
-                with gr.Column():
-                    enc_image = gr.Image(type="pil", label="Upload Image")
-                    enc_message = gr.Textbox(label="Secret Message", placeholder="Type your message...")
-                    enc_epsilon = gr.Slider(1.0, 10.0, value=5.0, step=0.5, label="Epsilon (perturbation strength)")
-                    enc_repetition = gr.Checkbox(value=True, label="Use 3x repetition coding")
-                    enc_btn = gr.Button("Encode Message", variant="primary")
-                with gr.Column():
-                    enc_stego = gr.Image(type="pil", label="Stego Image (download this)")
-                    enc_diff = gr.Image(type="pil", label="Difference (20x amplified)")
-                    enc_carriers = gr.Image(type="pil", label="Carrier Positions")
-                    enc_info = gr.Textbox(label="Encoding Info", lines=5)
-
-            enc_btn.click(
-                encode_message,
-                inputs=[enc_image, enc_message, enc_epsilon, enc_repetition],
-                outputs=[enc_stego, enc_diff, enc_carriers, enc_info],
-            )
-
-        with gr.Tab("Detect & Decode"):
+                cover_to_stego_diff = gr.Image(
+                    type="pil",
+                    label="Cover -> stego difference (20x)",
+                )
+                stego_to_shield_diff = gr.Image(
+                    type="pil",
+                    label="Stego -> shielded difference (20x)",
+                )
             with gr.Row():
-                with gr.Column():
-                    dec_image = gr.Image(type="pil", label="Upload Stego Image")
-                    dec_cached = gr.Checkbox(value=True, label="Use cached clean latent (from Encode tab)")
-                    dec_btn = gr.Button("Decode Message", variant="primary")
-                with gr.Column():
-                    dec_info = gr.Textbox(label="Decode Results", lines=10)
+                carrier_overlay = gr.Image(
+                    type="pil",
+                    label="Carrier positions on the cover image",
+                )
+                stability_heatmap = gr.Image(
+                    type="pil",
+                    label="Latent stability map",
+                )
+            technical_summary = gr.Markdown(label="Technical summary")
 
-            dec_btn.click(
-                decode_message,
-                inputs=[dec_image, dec_cached],
-                outputs=[dec_info],
-            )
-
-        with gr.Tab("Analysis"):
-            with gr.Row():
-                with gr.Column():
-                    ana_image = gr.Image(type="pil", label="Upload Image")
-                    ana_epsilon = gr.Slider(1.0, 10.0, value=5.0, step=0.5, label="Test Epsilon")
-                    ana_btn = gr.Button("Analyze", variant="primary")
-                with gr.Column():
-                    ana_heatmap = gr.Image(type="pil", label="Stability Heatmap")
-                    ana_carriers = gr.Image(type="pil", label="Top-20 Carriers")
-                    ana_info = gr.Textbox(label="Analysis Results", lines=10)
-
-            ana_btn.click(
-                analyze_image,
-                inputs=[ana_image, ana_epsilon],
-                outputs=[ana_heatmap, ana_carriers, ana_info],
-            )
+        launch_btn.click(
+            run_live_demo,
+            inputs=[
+                input_image,
+                hidden_instruction,
+                epsilon,
+                use_repetition,
+                shield_strength,
+                seed,
+            ],
+            outputs=[
+                attack_image,
+                attack_story,
+                defense_image,
+                defense_story,
+                metrics,
+                cover_to_stego_diff,
+                stego_to_shield_diff,
+                carrier_overlay,
+                stability_heatmap,
+                technical_summary,
+            ],
+        )
 
     return app
 
 
-if __name__ == '__main__':
-    app = build_app()
-    app.launch(share=False)
+if __name__ == "__main__":
+    build_app().queue(default_concurrency_limit=1).launch(share=False, css=APP_CSS)

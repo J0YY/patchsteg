@@ -12,19 +12,20 @@ class StegoVAE:
         self.image_size = image_size
         self.latent_size = image_size // 8  # 32 for 256, 64 for 512
         self.vae = AutoencoderKL.from_pretrained(
-            "stabilityai/sd-vae-ft-mse"
+            "stabilityai/sd-vae-ft-mse",
+            low_cpu_mem_usage=False,
         ).to(device).eval()
         self.scaling_factor = self.vae.config.scaling_factor  # 0.18215
 
         self.to_tensor = transforms.Compose([
             transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5]),  # -> [-1, 1]
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),  # -> [-1, 1]
         ])
 
     @torch.no_grad()
     def encode(self, image: Image.Image) -> torch.Tensor:
-        """Image -> latent [1, 4, 64, 64]"""
+        """Image -> latent [1, 4, image_size/8, image_size/8]."""
         x = self.to_tensor(image).unsqueeze(0).to(self.device)
         latent = self.vae.encode(x).latent_dist.mean
         latent = latent * self.scaling_factor
@@ -39,7 +40,7 @@ class StegoVAE:
 
     @torch.no_grad()
     def decode(self, latent: torch.Tensor) -> Image.Image:
-        """Latent [1, 4, 64, 64] -> Image"""
+        """Latent [1, 4, image_size/8, image_size/8] -> Image."""
         latent_scaled = latent / self.scaling_factor
         pixels = self.vae.decode(latent_scaled).sample
         pixels = (pixels.clamp(-1, 1) + 1) / 2  # -> [0, 1]
