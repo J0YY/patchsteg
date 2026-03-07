@@ -120,6 +120,7 @@ APP_CSS = """
 
 .hero-intro h1 {
   margin: 0;
+  color: var(--ink) !important;
   font-family: "Iowan Old Style", "Palatino Linotype", serif;
   font-size: 2.9rem;
   line-height: 1.02;
@@ -128,9 +129,38 @@ APP_CSS = """
 .hero-intro p {
   margin: 0.8rem 0 0;
   max-width: 56rem;
-  color: var(--muted);
+  color: var(--muted) !important;
   font-size: 1.05rem;
   line-height: 1.55;
+}
+
+.hero-intro code,
+.hero-intro span,
+.hero-intro div,
+.hero-intro strong,
+.story-card h3,
+.story-card .bubble-body,
+.story-card .story-footer,
+.stats-shell,
+.stats-shell *,
+.forensics-shell,
+.forensics-shell * {
+  color: var(--ink) !important;
+}
+
+.story-card .story-eyebrow,
+.story-card .bubble-label,
+.stats-shell .stat-label,
+.stats-shell .stats-note {
+  color: var(--muted) !important;
+}
+
+.status-pill.attack {
+  color: var(--attack) !important;
+}
+
+.status-pill.shield {
+  color: var(--shield) !important;
 }
 
 .control-shell {
