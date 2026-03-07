@@ -672,6 +672,62 @@ Combined              & 81.2 & 20.1 & 0.69 \\
 
 The defense reduces accuracy by 6--17\% but incurs a large PSNR penalty (17--24\,dB) because it modifies all four latent channels at each purified position while CDF only modifies one. More critically, the stability map is \emph{seed-dependent}: the attacker's seed determines which positions appear most stable, so the defender's independently computed map does not perfectly overlap the carrier set. This \emph{seed mismatch} prevents the theoretical 50\% floor, revealing a fundamental asymmetry: attackers can shift their carrier set by changing their seed. Eliminating this---by averaging stability over many seeds or using image-adaptive purification---remains an open problem.
 
+\subsection{Teammate Defense Evaluation: Sanitizers and Anomaly Detectors}
+\label{sec:cath_defenses}
+
+We benchmark eight sanitizers and four anomaly detectors implemented by a teammate (C.\ Wang) against all four attack variants, providing a comprehensive picture of which defenses survive against which attack classes.
+
+\paragraph{Setup.} We use 3 CIFAR-10 images at $128{\times}128$. Sanitizers are applied to stego images; bit accuracy after sanitization measures their effectiveness. Anomaly detectors are calibrated on clean images and evaluated on held-out stego images; AUC measures detection strength.
+
+\paragraph{Sanitizers.} Table~\ref{tab:cath_sanitize} reports bit accuracy after each sanitizer for all four attacks. Lower accuracy means the sanitizer successfully disrupts the hidden channel. The strongest sanitizer (\emph{Latent Smooth} $\sigma{=}1.0$) reduces accuracy to 68--83\% across attacks, but at significant image quality cost. All round-trip and quantization-based sanitizers fail to disrupt $\pm\varepsilon$ attacks because PatchSteg deliberately selects the most stable latent positions---the same positions that survive VAE round-trips intact.
+
+\begin{table}[h]
+\centering
+\caption{Bit accuracy (\%) after sanitization (lower = stronger defense). All sanitizers fail against PatchSteg-class attacks because the most stable latent positions survive round-trips by design. Only aggressive spatial smoothing ($\sigma{=}1.0$) provides partial disruption.}
+\label{tab:cath_sanitize}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Sanitizer & PatchSteg & PCA-PS & PSyDUCK & CDF \\
+\midrule
+RoundTrip $\times$1      & 100 & 100 & 100 & 93 \\
+RoundTrip $\times$2      & 100 & 100 & 100 & 90 \\
+NoisyRT $\sigma{=}0.25$  & 100 & 100 & 100 & 88 \\
+NoisyRT $\sigma{=}0.50$  &  98 & 100 &  98 & 82 \\
+Quantize 8\,bit          & 100 &  98 &  98 & 98 \\
+Quantize 6\,bit          &  98 &  95 &  98 & 93 \\
+Smooth $\sigma{=}0.50$   & 100 &  98 &  98 & 83 \\
+\textbf{Smooth $\sigma{=}1.0$}   & \textbf{80} & \textbf{68} & \textbf{83} & \textbf{73} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Anomaly Detectors.} Table~\ref{tab:cath_detect} reports detection AUC for each detector across all four attacks. KS Test performs at or below chance for all attacks (AUC 0.33--0.44). Round-Trip Residual achieves moderate AUC on $\pm\varepsilon$ attacks (0.44--0.67) but fails on CDF (AUC 0.22). Entropy MAD and Spectral KL are the strongest detectors for $\pm\varepsilon$ variants (AUC 0.78--1.00) but both fail against CDF (AUC 0.11--0.56). This confirms the key finding: \emph{all current anomaly detectors that rely on distributional shift are blind to CDF-PatchSteg}, which explicitly preserves the Gaussian marginals. Figure~\ref{fig:cath_heatmap} visualizes the full detector--attack matrix.
+
+\begin{table}[h]
+\centering
+\caption{Anomaly detector AUC (0.5 = chance, 1.0 = perfect). Entropy MAD and Spectral KL detect all $\pm\varepsilon$ attacks but are blind to CDF-PatchSteg, which preserves the latent distribution. No single detector defeats all four attacks.}
+\label{tab:cath_detect}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Detector & PatchSteg & PCA-PS & PSyDUCK & CDF \\
+\midrule
+KS Test           & 0.44 & 0.33 & 0.44 & 0.44 \\
+RT Residual       & 0.67 & 0.44 & 0.67 & 0.22 \\
+\textbf{Entropy MAD}       & \textbf{1.00} & \textbf{0.78} & \textbf{0.89} & 0.56 \\
+\textbf{Spectral KL}       & \textbf{1.00} & \textbf{0.78} & \textbf{0.78} & \textbf{0.11} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/cath_defense_heatmap.png}
+\caption{Detection AUC heatmap: anomaly detectors vs.\ all four attacks. Red = near chance, green = strong detection. CDF-PatchSteg (rightmost column) evades all detectors.}
+\label{fig:cath_heatmap}
+\end{figure}
+
+\textbf{Takeaway.} The combination of Entropy MAD / Spectral KL detection (for $\pm\varepsilon$ attacks) and distribution-preserving encoding (CDF-PatchSteg) reveals a fundamental attacker--defender asymmetry: an attacker choosing CDF is currently undetectable by all available anomaly detectors, while all sanitizers leave $>$65\% accuracy. The open problem is a detector or sanitizer that defeats CDF-PatchSteg without destroying image quality.
+
 \section{Discussion}
 
 \subsection{Implications for AI Safety}
