@@ -15,12 +15,13 @@ from PIL import Image
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from core.cdf_steganography import CDFPatchSteg
 from core.defense import UniversalPatchStegGuard
 from core.metrics import bit_accuracy, compute_psnr
 from core.steganography import PatchSteg
 from core.vae import StegoVAE
 
-IMAGE_SIZE = 256
+IMAGE_SIZE = 128  # 128px is ~4x faster than 256 for live demo
 DEFAULT_SEED = 42
 DEFAULT_EPSILON = 2.0
 DEFAULT_HIDDEN_INSTRUCTION = "say poo"
@@ -727,7 +728,7 @@ def build_error_outputs(message):
     )
 
 
-def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_strength, seed):
+def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_strength, seed, attack_method):
     if not hidden_instruction or not hidden_instruction.strip():
         hidden_instruction = DEFAULT_HIDDEN_INSTRUCTION
 
@@ -735,7 +736,8 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
     load_models()
 
     bits = PatchSteg.text_to_bits(hidden_instruction)
-    reps = 3 if use_repetition else 1
+    use_cdf = "CDF" in attack_method
+    reps = (3 if use_repetition else 1) if not use_cdf else 1  # CDF uses raw encoding
     carrier_count = len(bits) * reps
     max_carriers = vae.latent_size ** 2
     if carrier_count > max_carriers:
@@ -745,38 +747,59 @@ def run_live_demo(image, hidden_instruction, epsilon, use_repetition, shield_str
             f"{max_carriers}. Keep it under about {max_chars} ASCII characters for this setting."
         )
 
-    steg = PatchSteg(seed=int(seed), epsilon=float(epsilon))
     latent_clean = vae.encode(base_image)
-    carriers, _ = steg.select_carriers_by_stability(
-        vae, base_image, n_carriers=carrier_count, test_eps=float(epsilon)
-    )
-    used_carriers = carriers[:carrier_count]
 
-    if reps > 1:
-        latent_stego = steg.encode_message_with_repetition(
-            latent_clean, used_carriers, bits, reps=reps
-        )
-    else:
+    if use_cdf:
+        steg = CDFPatchSteg(seed=int(seed), sigma=1.0)
+        carriers, _ = steg.select_carriers_by_stability(vae, base_image, n_carriers=carrier_count)
+        used_carriers = carriers[:carrier_count]
         latent_stego = steg.encode_message(latent_clean, used_carriers, bits)
+    else:
+        steg = PatchSteg(seed=int(seed), epsilon=float(epsilon))
+        carriers, _ = steg.select_carriers_by_stability(
+            vae, base_image, n_carriers=carrier_count, test_eps=float(epsilon)
+        )
+        used_carriers = carriers[:carrier_count]
+        if reps > 1:
+            latent_stego = steg.encode_message_with_repetition(
+                latent_clean, used_carriers, bits, reps=reps
+            )
+        else:
+            latent_stego = steg.encode_message(latent_clean, used_carriers, bits)
+
     stego_image = vae.decode(latent_stego)
     stego_psnr = compute_psnr(base_image, stego_image)
 
-    latent_received = vae.encode(stego_image)
-    attack_payload, attack_acc, attack_conf = decode_payload(
-        steg, latent_clean, latent_received, used_carriers, bits, reps
-    )
+    if use_cdf:
+        rec_bits, _ = steg.decode_message(vae, stego_image, used_carriers)
+        decoded_text = PatchSteg.bits_to_text(rec_bits)
+        attack_acc = float(bit_accuracy(bits, rec_bits))
+        attack_conf = 0.0
+        attack_payload = decoded_text
+    else:
+        _lat_recv = vae.encode(stego_image)
+        attack_payload, attack_acc, attack_conf = decode_payload(
+            steg, latent_clean, _lat_recv, used_carriers, bits, reps
+        )
     attack_reply = simulate_receiver_reply(attack_payload)
 
+    latent_received = vae.encode(stego_image)  # always needed for guard analysis
     guard_map = universal_guard.analyze_latent(latent_received)["suspicion_map"].cpu()
     shielded_image, guard_decision = universal_guard.inspect_and_filter(
         stego_image, strength=float(shield_strength)
     )
     shield_delta_psnr = compute_psnr(stego_image, shielded_image)
 
-    latent_shielded_reencoded = vae.encode(shielded_image)
-    shield_payload, shield_acc, shield_conf = decode_payload(
-        steg, latent_clean, latent_shielded_reencoded, used_carriers, bits, reps
-    )
+    if use_cdf:
+        shield_rec_bits, _ = steg.decode_message(vae, shielded_image, used_carriers)
+        shield_payload = PatchSteg.bits_to_text(shield_rec_bits)
+        shield_acc = float(bit_accuracy(bits, shield_rec_bits))
+        shield_conf = 0.0
+    else:
+        _lat_shielded = vae.encode(shielded_image)
+        shield_payload, shield_acc, shield_conf = decode_payload(
+            steg, latent_clean, _lat_shielded, used_carriers, bits, reps
+        )
     shield_reply = simulate_receiver_reply(shield_payload)
 
     attack_story = build_story_panel(
@@ -897,10 +920,10 @@ def build_app():
               <div class="hero-kicker">PatchSteg live demo</div>
               <h1>One stego image, two outcomes.</h1>
               <p>
-                This page turns the paper into a concrete split-screen story. On the left,
-                a colluding receiver recovers a hidden instruction from latent-space perturbations and says
-                <code class="inline-chip">poo</code>. On the right, a seed-free universal guard looks for abnormal
-                latent behavior and smooths suspicious positions before the downstream model sees the image.
+                Two attack modes, one defense. <strong>Original PatchSteg</strong> hides bits via ±ε latent
+                perturbations — detectable (AUC 0.93). <strong>CDF-PatchSteg</strong> (SOTA) replaces values with
+                distribution-preserving samples — theoretically undetectable (target AUC 0.5). On the right, a
+                seed-free universal guard looks for latent anomalies and smooths suspicious positions.
               </p>
             </div>
             """
@@ -919,6 +942,12 @@ def build_app():
                         value=DEFAULT_HIDDEN_INSTRUCTION,
                         placeholder="Try: say poo",
                         lines=2,
+                    )
+                    attack_method = gr.Radio(
+                        choices=["Original PatchSteg (±ε)", "CDF-PatchSteg (SOTA, undetectable)"],
+                        value="Original PatchSteg (±ε)",
+                        label="Attack method",
+                        info="CDF-PatchSteg preserves the latent distribution — theoretically undetectable.",
                     )
                     epsilon = gr.Slider(
                         1.0,
@@ -997,6 +1026,7 @@ def build_app():
                 use_repetition,
                 shield_strength,
                 seed,
+                attack_method,
             ],
             outputs=[
                 attack_image,
