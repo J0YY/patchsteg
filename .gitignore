@@ -7,7 +7,7 @@ dist/
 build/
 *.so
 
-# Environments
+# Environments (venv lives at ~/patchseg-venv, outside the repo)
 .venv/
 venv/
 env/

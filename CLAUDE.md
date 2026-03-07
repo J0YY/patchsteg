@@ -3,6 +3,25 @@
 > 3-person hackathon team. Each teammate runs Claude Code.
 > **This file is the single source of truth. Read it fully before doing anything.**
 
+## Environment Setup (WSL)
+
+The venv lives **outside the repo** at `~/patchseg-venv` to keep Windows filesystem I/O fast.
+
+```bash
+# First time only — create venv and install deps:
+python3 -m venv ~/patchseg-venv
+~/patchseg-venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+~/patchseg-venv/bin/pip install -r requirements.txt
+
+# Every session — activate before running anything:
+source ~/patchseg-venv/bin/activate
+
+# Run experiments:
+python experiments/cdf_capacity_test.py
+```
+
+**Never `pip install` to system Python** — always activate the venv first or use `~/patchseg-venv/bin/python` directly.
+
 ## Git Workflow (CRITICAL)
 
 ```
