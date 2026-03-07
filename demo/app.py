@@ -187,6 +187,86 @@ APP_CSS = """
   padding: 1rem;
 }
 
+.control-shell,
+.forensics-shell {
+  --body-text-color: #f8fafc !important;
+  --input-background-fill: transparent !important;
+  --input-background-fill-focus: transparent !important;
+  --input-border-color: #31465f !important;
+  --input-border-color-focus: #60a5fa !important;
+  --input-placeholder-color: rgba(248, 250, 252, 0.65) !important;
+  --checkbox-background-color: #223140 !important;
+  --checkbox-background-color-hover: #2b3d52 !important;
+  --checkbox-background-color-focus: #2b3d52 !important;
+  --checkbox-background-color-selected: #60a5fa !important;
+  --checkbox-border-color: #94a3b8 !important;
+  --checkbox-border-color-hover: #cbd5e1 !important;
+  --checkbox-border-color-focus: #60a5fa !important;
+  --checkbox-border-color-selected: #60a5fa !important;
+  --button-secondary-background-fill: #223140 !important;
+  --button-secondary-background-fill-hover: #2b3d52 !important;
+  --button-secondary-border-color: #31465f !important;
+  --button-secondary-border-color-hover: #475f7d !important;
+  --button-secondary-text-color: #f8fafc !important;
+  --button-secondary-text-color-hover: #f8fafc !important;
+}
+
+.control-shell [data-testid="image"],
+.control-shell [data-testid="textbox"],
+.control-shell [data-testid="number-input"],
+.control-shell [data-testid="slider"],
+.control-shell [data-testid="checkbox"],
+.control-shell [data-testid="accordion"] {
+  background: #223140 !important;
+  border: 1px solid #31465f !important;
+  border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.control-shell [data-testid="block-label"],
+.control-shell [data-testid="block-info"],
+.control-shell [data-testid="image"] *,
+.control-shell [data-testid="textbox"] *,
+.control-shell [data-testid="number-input"] *,
+.control-shell [data-testid="slider"] *,
+.control-shell [data-testid="checkbox"] *,
+.control-shell [data-testid="accordion"] *,
+.control-shell label,
+.control-shell legend {
+  color: #f8fafc !important;
+}
+
+.control-shell input,
+.control-shell textarea,
+.control-shell select {
+  color: #f8fafc !important;
+  background: transparent !important;
+}
+
+.control-shell input::placeholder,
+.control-shell textarea::placeholder {
+  color: rgba(248, 250, 252, 0.65) !important;
+}
+
+.forensics-shell [data-testid="image"],
+.forensics-shell [data-testid="markdown"] {
+  background: #223140 !important;
+  border: 1px solid #31465f !important;
+  border-radius: 18px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.forensics-shell [data-testid="block-label"],
+.forensics-shell [data-testid="block-info"],
+.forensics-shell [data-testid="image"] *,
+.forensics-shell [data-testid="markdown"] *,
+.forensics-shell [data-testid="markdown"] p,
+.forensics-shell [data-testid="markdown"] li,
+.forensics-shell [data-testid="markdown"] strong,
+.forensics-shell [data-testid="markdown"] em {
+  color: #f8fafc !important;
+}
+
 .launch-btn button {
   background: linear-gradient(135deg, #1d3557 0%, #2d6a4f 100%);
   border: none;
