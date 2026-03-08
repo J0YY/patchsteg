@@ -1,8 +1,165 @@
-# PatchSteg: Covert Steganographic Communication Between Vision Models via Latent Space Perturbation
+# PatchSteg: Defeating SOTA Steganographic Attacks in Latent Space
 
-**Training-free steganographic framework for hiding binary messages in images using pretrained VAE latent spaces.**
+**Can a defender reliably neutralize covert image channels between AI agents — even when the attack is theoretically undetectable?**
 
-PatchSteg enables two AI agents sharing a secret key to embed and recover binary messages in images with negligible visual artifacts. No model fine-tuning, no auxiliary networks, no adversarial training — just directional perturbations in the latent space of a pretrained autoencoder.
+PatchSteg studies this question by implementing a progression of increasingly strong steganographic attacks (each grounded in a published paper) and building defenses against them. All attacks are training-free, operating directly on the latent space of a pretrained Stable Diffusion VAE. No fine-tuning, no auxiliary networks.
+
+---
+
+## Attacks Implemented
+
+Each attack encodes a binary message into an image so that two agents sharing a secret seed can communicate covertly. Attacks are ordered by detectability (easiest to hardest to defend):
+
+| Attack | Paper | Method | Detection AUC | Status |
+|--------|-------|--------|---------------|--------|
+| **PatchSteg (±ε)** | *This work* | Add ±ε to carrier latent values along a secret direction vector | 0.93 (detectable) | In demo |
+| **CapacityPatchSteg** | *This work* | Compression + framed payloads + multilevel symbols + channel equalization for longer text/paragraphs | Not yet benchmarked | Experimental |
+| **AdaptivePatchSteg** | *This work* | Balanced pairwise modulation with equal-and-opposite carrier edits, geometry-aware directions, bit whitening, and joint carrier scoring to suppress simple residual signatures | Not yet benchmarked | Experimental |
+| **PCA-PatchSteg** | [Rolinek et al., CVPR 2019](https://arxiv.org/abs/1812.03463) — *VAEs Pursue PCA Directions (by Accident)* | Perturb along principal directions of the latent distribution — follows natural variation, harder to flag | ~0.6–0.8 | In demo |
+| **CDF-PatchSteg** | [Yang et al., CVPR 2024](https://arxiv.org/abs/2404.04956) — *Gaussian Shading: Provable Performance-Lossless Image Watermarking for Diffusion Models* | Replace carrier values with samples from upper/lower half of N(μ,σ) via inverse CDF — distribution-preserving, theoretically undetectable | ~0.50 (chance) | In demo |
+| **PSyDUCK-inspired** | [Jiang et al., arXiv 2501.19172](https://arxiv.org/abs/2501.19172) — *PSyDUCK: Training-Free Steganography for Latent Diffusion Models* | Per-bit unique direction vectors (no shared signature across carriers) — direction-based detectors fail. Post-hoc adaptation of PSyDUCK's trajectory-divergence concept. | ~0.6–0.8 | In demo |
+
+**Note:** Original PSyDUCK requires generation-time DDIM seed control (not post-hoc). Our adaptation captures its per-bit unique-direction concept in a post-hoc VAE setting. AGM (arXiv 2510.07219) explains *why* ±ε is detectable (VAE decoder amplifies latent perturbations) and is implemented as a detector (see Defenses).
+
+**Status note:** The paper's quantitative claims currently cover PatchSteg, CDF-PatchSteg, PCA-PatchSteg, PSyDUCK-inspired, and the defense stack. `CapacityPatchSteg` and `AdaptivePatchSteg` are repo extensions for stronger practical channels, but they are not yet part of the paper-quality benchmark suite. For `AdaptivePatchSteg`, the implemented raw pairwise bit channel is the stable core; the framed text layer should still be treated as experimental.
+
+---
+
+## Defenses Implemented
+
+| Defense | Paper | Approach | Defeats |
+|---------|-------|----------|---------|
+| **UniversalPatchStegGuard** | This work | Latent anomaly scoring + spatial smoothing (no key needed) | PatchSteg (±ε) |
+| **AGMDetector** | [arXiv 2510.07219](https://arxiv.org/abs/2510.07219) — *AGM: Autoencoder-Guided Watermark Detection* | VAE round-trip residual analysis: stego latents produce structured residuals that clean images don't | PatchSteg (±ε), PSyDUCK-inspired |
+| **CertifiedPurifier** | This work | Stability-guided resampling + channel noise — certified bit accuracy bound | All four attacks |
+
+---
+
+## Running Each Attack on an Image
+
+```python
+from PIL import Image
+from core.vae import StegoVAE
+vae = StegoVAE(device='cpu', image_size=128)
+image = Image.open("your_image.png").convert("RGB").resize((128, 128))
+message = "hello"
+```
+
+### PatchSteg (±ε) — `core/steganography.py`
+> Directional latent perturbation. Fast, high accuracy, detectable at large ε.
+```python
+from core.steganography import PatchSteg
+steg = PatchSteg(seed=42, epsilon=5.0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=48)
+bits = PatchSteg.text_to_bits(message)
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+# Decode:
+rec, _ = steg.decode_message(vae.encode(image), vae.encode(stego), carriers[:len(bits)])
+print(PatchSteg.bits_to_text(rec))
+```
+
+### CapacityPatchSteg — `core/capacity_steganography.py`
+> Capacity-oriented PatchSteg variant for longer sentences and paragraphs. Keeps the same cover-image decode assumption, but improves throughput via UTF-8 payload framing, optional zlib compression, binary headers, quaternary payload symbols, and stability-map equalization.
+
+This should be read as a payload-layer upgrade over the same post-hoc latent channel, not as a separate fully benchmarked attack family. It still assumes the receiver can reproduce the same carrier set from the clean cover image and shared secret.
+```python
+from core.capacity_steganography import CapacityPatchSteg
+steg = CapacityPatchSteg(seed=42, epsilon=2.0, bits_per_symbol=2)
+result = steg.encode_text(
+    vae,
+    image,
+    "This is a much longer paragraph than raw ASCII PatchSteg can usually carry.",
+    enable_compression=True,
+)
+stego = result.stego_image
+
+decoded = steg.decode_text(vae, image, stego)
+print(decoded.text)
+print(decoded.payload.compressed, decoded.payload.original_bytes, decoded.payload.stored_bytes)
+```
+
+### AdaptivePatchSteg — `core/adaptive_steganography.py`
+> Stronger post-hoc attack aimed at defeating simple residual-statistics detectors. It uses pairwise differential embedding, content-aware per-pair directions, seeded payload whitening, a compact packet header, and a joint carrier score over stability, texture, and clean round-trip drift.
+
+This is the most aggressive perturbation-based attack in the repo. It still assumes the receiver can reproduce the clean cover latent, but it removes the baseline's single-direction global signature and keeps the packet header from appearing as a fixed bit pattern.
+
+The raw pairwise bit channel is the verified part today. The framed text helpers are still experimental and should be treated as a tuning surface, especially at `128x128`; for longer text, use `256x256` or larger images and benchmark the operating point you want.
+
+Compared with baseline `PatchSteg`:
+- Baseline writes one `+epsilon` or `-epsilon` perturbation at each carrier along the same shared direction.
+- `AdaptivePatchSteg` writes each symbol across a *pair* of carriers with equal-and-opposite edits, which reduces the simple mean-shift signature left by the baseline.
+- Baseline uses one global secret direction. `AdaptivePatchSteg` derives a different direction per pair from local latent geometry mixed with seeded randomness.
+- Baseline ranks carriers only by stability. `AdaptivePatchSteg` uses a joint score over stability, local texture, and clean round-trip drift.
+- Baseline payload headers are fixed binary structure. `AdaptivePatchSteg` whitens framed bits with a keystream so the control packet is less repetitive.
+```python
+from core.adaptive_steganography import AdaptivePatchSteg
+
+steg = AdaptivePatchSteg(seed=42, epsilon=2.5, bits_per_symbol=1)
+result = steg.encode_text(
+    vae,
+    image,
+    "Transmit a longer instruction while keeping the latent residual signature balanced.",
+    enable_compression=True,
+)
+stego = result.stego_image
+
+decoded = steg.decode_text(vae, image, stego)
+print(decoded.text)
+print(decoded.header_confidence, decoded.payload_confidence)
+```
+
+### PCA-PatchSteg — `core/pca_directions.py`
+> Perturbs along principal directions of the latent distribution (Rolinek et al., CVPR 2019). Harder to detect via direction-based detectors than random ±ε.
+```python
+from core.pca_directions import PCADirections, PCAPatchSteg
+pca_dir = PCADirections(n_components=4)
+pca_dir.fit_global(vae, [image])          # fit on available images
+steg = PCAPatchSteg(pca_dir, seed=42, epsilon=5.0, component=0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=48)
+bits = PCAPatchSteg.text_to_bits(message)  # same API as PatchSteg
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+rec, _ = steg.decode_message(vae.encode(image), vae.encode(stego), carriers[:len(bits)])
+print(PCAPatchSteg.bits_to_text(rec))
+```
+
+### PSyDUCK-inspired — `core/psyduck_steganography.py`
+> Per-bit unique direction vectors (Jiang et al., arXiv 2501.19172). No shared direction signature — direction-based detectors trained on a single direction fail.
+```python
+from core.psyduck_steganography import PSyDUCKSteg
+steg = PSyDUCKSteg(seed=42, epsilon=5.0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=48)
+bits = PSyDUCKSteg.text_to_bits(message)
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+rec, _ = steg.decode_message(vae.encode(image), vae.encode(stego), carriers[:len(bits)])
+print(PSyDUCKSteg.bits_to_text(rec))
+```
+
+### CDF-PatchSteg — `core/cdf_steganography.py`
+> Distribution-preserving encoding (Yang et al., CVPR 2024). Replaces carrier values with fresh samples from N(μ,σ). Statistically indistinguishable from clean; no clean reference needed to decode.
+```python
+from core.cdf_steganography import CDFPatchSteg
+steg = CDFPatchSteg(seed=42, sigma=1.0)
+carriers, _ = steg.select_carriers_by_stability(vae, image, n_carriers=20)
+bits = CDFPatchSteg.text_to_bits(message)
+latent_stego = steg.encode_message(vae.encode(image), carriers[:len(bits)], bits)
+stego = vae.decode(latent_stego)
+# Blind decode — no cover image needed:
+rec, _ = steg.decode_message(vae, stego, carriers[:len(bits)])
+print(CDFPatchSteg.bits_to_text(rec))
+```
+
+### AGM Detector (defense) — `core/agm_detector.py`
+> VAE round-trip residual analysis (arXiv 2510.07219). Detects perturbation-based attacks; blind to CDF-PatchSteg.
+```python
+from core.agm_detector import AGMDetector
+det = AGMDetector()
+suspicious, score, report = det.detect(vae, stego)
+print(f"Suspicious: {suspicious}  Score: {score:.3f}")
+print(f"Residual energy: {report['mean_residual_energy']:.4f}")
+```
 
 ---
 
@@ -44,34 +201,31 @@ The VAE's KL regularization creates a locally smooth, approximately invertible l
 ```
 patchsteg/
 ├── core/                          # Core library
-│   ├── vae.py                     # StegoVAE: SD VAE wrapper with proper scaling
-│   ├── steganography.py           # PatchSteg: encoding, decoding, carrier selection
-│   ├── analysis.py                # Mechanistic analysis (channel importance, error maps)
+│   ├── vae.py                     # StegoVAE: SD VAE wrapper
+│   ├── steganography.py           # PatchSteg: ±epsilon encoding
+│   ├── cdf_steganography.py       # CDFPatchSteg: distribution-preserving encoding
+│   ├── pca_directions.py          # PCA-guided perturbation directions
+│   ├── detector.py                # Latent-space steganalysis detector (46 features)
+│   ├── analysis.py                # Mechanistic analysis helpers
 │   └── metrics.py                 # PSNR, SSIM, bit accuracy
 │
 ├── experiments/                   # Reproducible experiment scripts
-│   ├── carrier_stability.py       # Stability map computation and visualization
-│   ├── capacity_test.py           # Capacity vs quality tradeoff
-│   ├── robustness_test.py         # JPEG, noise, resize robustness
-│   ├── detectability_test.py      # Statistical detectability analysis
-│   ├── mechanistic_analysis.py    # Channel importance, error correlation
-│   ├── extended_experiments.py    # Natural photos, longer messages, LSB baseline, theory
-│   ├── generate_figures.py        # Publication-quality figure generation
-│   ├── run_all.py                 # Run all experiments sequentially
-│   └── run_remaining.py           # Run subset of experiments
+│   ├── cdf_capacity_test.py       # CDF accuracy, KS test, detectability
+│   ├── pca_test.py                # PCA directions analysis
+│   ├── latent_detector_test.py    # Cross-method detection matrix
+│   ├── v2_*.py                    # V2 experiments (multi-model, deployment, etc.)
+│   └── *.py                       # V1 experiments (stability, capacity, etc.)
 │
 ├── paper/                         # LaTeX paper
 │   ├── main.tex                   # Full paper source
-│   ├── main.pdf                   # Compiled PDF
 │   ├── build.sh                   # Build script (uses tectonic)
-│   └── figures/                   # All generated figures (18 PNGs)
+│   └── figures/                   # All generated figures
 │
-├── demo/                          # Interactive demo
-│   └── app.py                     # Gradio app (encode/decode/analyze)
-│
-├── roundtrip_test.py              # Initial validation test
+├── references/                    # Key research papers (PDFs + INDEX.md)
+├── demo/                          # Gradio interactive demo
 ├── requirements.txt               # Python dependencies
-└── EXPERIMENT_LOG.md              # Detailed experiment results log
+├── CLAUDE.md                      # AI agent instructions (read by Claude Code)
+└── EXPERIMENT_LOG.md              # Experiment results log
 ```
 
 ---
@@ -170,31 +324,80 @@ print(f"Decoded: {decoded_text}")  # "HI"
 ### Run the interactive demo
 
 ```bash
-conda activate patchsteg
+# WSL (recommended — uses venv outside repo for speed)
+source ~/patchseg-venv/bin/activate
 python demo/app.py
 # Opens Gradio interface at http://localhost:7860
+
+# conda alternative
+conda activate patchsteg
+python demo/app.py
+```
+
+The demo has a **"Attack method"** selector in the UI:
+- **Original PatchSteg (±ε)** — classic directional perturbation (detectable at high ε)
+- **CDF-PatchSteg (SOTA, undetectable)** — distribution-preserving encoding, theoretically undetectable (AUC ≈ 0.5)
+
+A static HTML summary of the demo is also saved at `demo/demo_summary.html` for offline presentation.
+
+---
+
+## SOTA Attacks
+
+### CDF-PatchSteg — Distribution-Preserving Steganography
+
+The original PatchSteg uses ±ε perturbations which are statistically detectable (AUC 0.93 at ε=5.0). **CDF-PatchSteg** is our state-of-the-art replacement: instead of shifting values by ε, it resamples each carrier value from the upper or lower half of the latent distribution N(μ, σ) using inverse Gaussian CDF. The resulting latent is statistically indistinguishable from a clean encode (target detection AUC ≈ 0.5).
+
+**Key distinction vs prior SOTA** (Gaussian Shading, PRC, PSyDUCK): all existing distribution-preserving methods require *control over the diffusion noise seed during generation*. CDF-PatchSteg works **post-hoc** on existing images — the sender did not generate them.
+
+#### Python API
+
+```python
+from core.vae import StegoVAE
+from core.cdf_steganography import CDFPatchSteg
+
+vae = StegoVAE(device='cpu', image_size=128)
+cdf = CDFPatchSteg(seed=42, sigma=1.0)
+
+# Encode
+carriers, _ = cdf.select_carriers_by_stability(vae, cover_image, n_carriers=20)
+latent = vae.encode(cover_image)
+bits = [1, 0, 1, 1, 0, 1, 0, 0]  # your message bits
+latent_stego = cdf.encode_message(latent, carriers, bits)
+stego_image = vae.decode(latent_stego)
+
+# Decode (no clean latent needed — blind decode)
+decoded_bits, confidences = cdf.decode_message(vae, stego_image, carriers)
+```
+
+#### Run the experiment
+
+```bash
+source ~/patchseg-venv/bin/activate
+python experiments/cdf_capacity_test.py
+# Generates: paper/figures/cdf_capacity_curve.png, cdf_detectability.png, cdf_distribution.png
 ```
 
 ---
 
 ## Experiments
 
-### Running all experiments
+### Running experiments
 
 ```bash
 conda activate patchsteg
 
-# Run the initial round-trip validation
-python roundtrip_test.py
+# V1 core experiments
+python experiments/run_remaining.py        # Robustness, mechanistic, detectability
+python experiments/extended_experiments.py  # Natural photos, messages, LSB, theory
 
-# Run core experiments (carrier stability, capacity, robustness, detectability, mechanistic)
-python experiments/run_remaining.py
+# V2 expanded experiments
+python experiments/v2_run_all.py           # Multi-model, deployment, content science
 
-# Run extended experiments (natural photos, longer messages, LSB baseline, theory)
-python experiments/extended_experiments.py
-
-# Generate publication figures
-python experiments/generate_figures.py
+# Phase 1-3 (new)
+python experiments/cdf_capacity_test.py    # CDF distribution-preserving steganography
+python experiments/pca_test.py             # PCA-guided perturbation directions
+python experiments/latent_detector_test.py # Latent-space steganalysis detector
 ```
 
 ### Experiment Summary
@@ -206,11 +409,10 @@ python experiments/generate_figures.py
 | Capacity analysis | `capacity_test.py` | Up to 500 bits at 99.4% raw accuracy |
 | Robustness | `robustness_test.py` | Survives JPEG Q=50, noise σ=0.01 |
 | Detectability | `detectability_test.py` | AUC ranges from 0.44 (ε=1) to 0.97 (ε=10) |
-| Mechanistic analysis | `mechanistic_analysis.py` | All 4 channels contribute equally; recon error ≠ stability |
 | Natural photographs | `extended_experiments.py` | 98.8% accuracy on CIFAR-10 images |
-| Message stress test | `extended_experiments.py` | 152-bit messages at 100% accuracy |
-| LSB comparison | `extended_experiments.py` | PatchSteg ε=2 stealthier than LSB (AUC 0.35 vs 0.65) |
-| Theoretical analysis | `extended_experiments.py` | Perturbation/noise ratio explains detectability threshold |
+| **CDF-PatchSteg** | `cdf_capacity_test.py` | Distribution-preserving encoding (target AUC≈0.5) |
+| **PCA directions** | `pca_test.py` | Data-driven perturbation directions from latent PCA |
+| **Steganalysis detector** | `latent_detector_test.py` | 46-feature detector + cross-method eval matrix |
 
 ---
 
@@ -238,6 +440,26 @@ Steganographic encoder/decoder using directional latent perturbations.
 | `decode_message_with_repetition(...)` | Decode with majority vote |
 | `text_to_bits(text)` | ASCII → bit list |
 | `bits_to_text(bits)` | Bit list → ASCII |
+
+### `CapacityPatchSteg(seed=42, epsilon=2.0, bits_per_symbol=2)`
+Capacity-oriented PatchSteg extension for longer textual payloads.
+
+| Method | Description |
+|--------|-------------|
+| `encode_text(vae, image, text, enable_compression=True)` | Compress + frame UTF-8 text, then embed it |
+| `decode_text(vae, cover_image, stego_image)` | Recover and validate framed text payload |
+| `compute_gain_map(vae, image)` | Estimate per-carrier channel gain from the stability map |
+| `select_carriers_by_capacity(vae, image, n_carriers)` | Top-N strongest carriers for multilevel coding |
+
+### `AdaptivePatchSteg(seed=42, epsilon=2.5, bits_per_symbol=1)`
+Detector-aware PatchSteg extension with balanced pairwise modulation.
+
+| Method | Description |
+|--------|-------------|
+| `encode_text(vae, image, text, enable_compression=True)` | Frame, whiten, and embed text with pairwise differential symbols |
+| `decode_text(vae, cover_image, stego_image)` | Recover and validate the framed payload |
+| `compute_quality_map(vae, image)` | Joint carrier score over stability, texture, and round-trip drift |
+| `select_carrier_pairs(vae, image, n_pairs)` | Build a spread-out schedule of balanced carrier pairs |
 
 ---
 
@@ -271,6 +493,8 @@ cd paper
 bash build.sh
 ```
 
+The current paper reports quantitative results for the baseline binary PatchSteg channel and the evaluated CDF/PCA/PSyDUCK variants. `CapacityPatchSteg` and `AdaptivePatchSteg` are included in the codebase and this README as experimental repo extensions, but their throughput/detectability numbers are not yet folded into the paper tables.
+
 The paper includes:
 - 7 tables with quantitative results
 - 18 figures (pipeline diagrams, stability maps, Pareto frontiers, detection comparisons, etc.)
@@ -292,9 +516,11 @@ can communicate covertly through images that appear identical to human observers
 
 ### Limitations
 - Both agents must share the exact same VAE checkpoint
-- Channel capacity is limited (tens to hundreds of bits per image)
+- Under the paper-evaluated binary protocol, capacity is limited to tens to hundreds of bits per image
 - Statistical detection is possible at higher perturbation strengths
-- Requires the original cover image for decoding (not blind steganography)
+- Requires the original cover image or an equivalent clean latent reference for decoding (not blind steganography)
+- `CapacityPatchSteg` is experimental and not yet benchmarked in the paper-quality evaluation suite
+- `AdaptivePatchSteg` is experimental and not yet benchmarked in the paper-quality evaluation suite
 
 ---
 

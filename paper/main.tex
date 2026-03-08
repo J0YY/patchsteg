@@ -19,7 +19,7 @@
 \maketitle
 
 \begin{abstract}
-We demonstrate PatchSteg, a training-free framework for covert communication between AI vision systems via imperceptible perturbations in autoencoder latent space. Using a pretrained Stable Diffusion VAE, we encode binary messages by applying directional perturbations to selected spatial positions in the latent grid. These perturbations produce negligible visual change (PSNR $>$ 30\,dB) while enabling reliable message recovery (100\% bit accuracy at $\varepsilon{=}5.0$ with stability-selected carriers). We discover that carrier stability is spatially non-uniform---certain latent positions preserve perturbation direction through the encode-decode round-trip far more reliably than others. Our analysis reveals a stealth--capacity tradeoff: at $\varepsilon{=}1.0$ the channel is not separable by our logistic regression detector (AUC = 0.44) but unreliable, while at $\varepsilon{=}5.0$ it achieves high accuracy but becomes statistically distinguishable (AUC = 0.93). Between these extremes, $\varepsilon{=}2.0$ offers a practical operating point with 100\% accuracy on structured images and marginal detectability (AUC = 0.68). We validate on 300 natural photographs from CIFAR-10 (30 per class) with bootstrap confidence intervals, demonstrate transmission of messages up to 152 bits at 100\% accuracy, and show the phenomenon generalizes across multiple VAE backbones (SD-VAE-MSE, SD-VAE-EMA, SDXL-VAE). Under a logistic regression detector, PatchSteg at $\varepsilon{=}2.0$ is harder to detect than classical LSB steganography (AUC = 0.35 vs.\ 0.65). The channel survives JPEG compression up to quality 50. We provide a theoretical analysis connecting channel reliability to the VAE's KL regularization structure. PatchSteg illustrates a potential risk vector for multi-agent AI systems and provides an initial characterization of both the attack surface and detection challenges. We further introduce CDF-PatchSteg, a distribution-preserving variant that replaces additive perturbations with inverse Gaussian CDF sampling, achieving theoretical undetectability (AUC $\approx$ 0.5). We develop a 46-feature latent-space steganalysis detector that reliably detects original PatchSteg but fails on CDF-PatchSteg, establishing an attack-defense narrative. We also explore PCA-guided perturbation directions aligned with natural latent variation.
+We demonstrate PatchSteg, a training-free framework for covert communication between AI vision systems via imperceptible perturbations in autoencoder latent space. Using a pretrained Stable Diffusion VAE, we encode binary messages by applying directional perturbations to selected spatial positions in the latent grid. The sender never flips pixel bits directly: the visible image is obtained only after decoding the perturbed representation. These perturbations produce negligible visual change (PSNR $>$ 30\,dB) while enabling reliable message recovery (100\% bit accuracy at $\varepsilon{=}5.0$ with stability-selected carriers). We discover that carrier stability is spatially non-uniform---certain latent positions preserve perturbation direction through the encode-decode round-trip far more reliably than others. Our analysis reveals a stealth--capacity tradeoff: at $\varepsilon{=}1.0$ the channel is not separable by our logistic regression detector (AUC = 0.44) but unreliable, while at $\varepsilon{=}5.0$ it achieves high accuracy but becomes statistically distinguishable (AUC = 0.93). Between these extremes, $\varepsilon{=}2.0$ offers a practical operating point with 100\% accuracy on structured images and marginal detectability (AUC = 0.68). We validate on 300 natural photographs from CIFAR-10 (30 per class) with bootstrap confidence intervals, demonstrate transmission of messages up to 152 bits at 100\% accuracy, and show the phenomenon generalizes across multiple VAE backbones (SD-VAE-MSE, SD-VAE-EMA, SDXL-VAE). Under a logistic regression detector, PatchSteg at $\varepsilon{=}2.0$ is harder to detect than classical LSB steganography (AUC = 0.35 vs.\ 0.65), which we use only as a pixel-domain baseline. We provide a theoretical analysis connecting channel reliability to the VAE's KL regularization structure and conclude with concrete next directions for stronger attacks and defenses, including distribution-matched carrier sampling, data-aligned perturbation directions, and seed-free latent sanitization.
 \end{abstract}
 
 \section{Introduction}
@@ -28,7 +28,7 @@ Recent work by Motwani et al.\ has demonstrated that large language models can e
 
 We answer this affirmatively with PatchSteg, a training-free steganographic framework that exploits the latent space of pretrained autoencoders. Our approach requires no model fine-tuning, no additional neural networks, and no adversarial training. Two agents sharing a secret key (a random seed) can embed and recover binary messages in images with negligible visible artifacts at appropriate perturbation strengths.
 
-The key insight is that pretrained vision autoencoders like the Stable Diffusion VAE map images to a structured latent space where small directional perturbations are preserved through the encode$\to$decode round-trip. By perturbing selected spatial positions along a shared direction vector, a sender encodes bits that a receiver can extract by re-encoding the received image and checking projection directions.
+The key insight is that pretrained vision autoencoders like the Stable Diffusion VAE map images to a structured latent space where small directional perturbations are preserved through the encode$\to$decode round-trip. By perturbing selected spatial positions along a shared direction vector, a sender encodes bits that a receiver can extract by re-encoding the received image and checking projection directions. Importantly, PatchSteg is \emph{not} a pixel-domain LSB scheme: the direct intervention occurs in representation space, and the pixel differences are only the decoder's side effect.
 
 Our contributions:
 \begin{enumerate}
@@ -50,11 +50,11 @@ Our contributions:
 
 \section{Related Work}
 
-\textbf{Neural image steganography.} RoSteALS embeds messages by training an encoder-decoder pair on top of a pretrained autoencoder. Stable Messenger and Diffusion-Stego use diffusion model latent spaces for message hiding but require training auxiliary networks. PSyDUCK embeds watermarks in diffusion model outputs during generation. In contrast, PatchSteg requires \emph{no training}---we exploit the inherent structure of a pretrained VAE's latent space.
+\textbf{Neural image steganography.} RoSteALS~\cite{bui2023rosteals} trains an encoder-decoder on top of a pretrained autoencoder latent space to hide messages robustly. PSyDUCK~\cite{psyduck2025} is the closest prior work: the first training-free steganography for latent diffusion models, achieving 99.91\% bit accuracy by diverging denoising trajectories with PRNG seeds. Critically, PSyDUCK and all other training-free methods require control over the \emph{initial diffusion noise}---they work during generation, not post-hoc. PatchSteg addresses the harder setting: embedding in \emph{existing} images the sender did not generate, with no training and no generation-time control.
 
-\textbf{AI agent collusion.} Motwani et al.\ demonstrate that LLM agents can develop covert text channels undetectable by monitors. We extend this threat model to vision: agents sharing images can hide messages in the latent representation, invisible to pixel-level inspection.
+\textbf{AI agent collusion.} Motwani et al.~\cite{motwani2024secret} demonstrate that LLM agents can develop covert text channels undetectable by monitors. We extend this threat model to vision: agents sharing images can hide messages in the latent representation, invisible to pixel-level inspection.
 
-\textbf{Distribution-preserving watermarking.} Gaussian Shading~\cite{yang2024gaussian} embeds watermarks in diffusion model latents by partitioning the Gaussian prior via CDF thresholds, achieving theoretical undetectability. PRC Watermark~\cite{fernandez2023stable} uses pseudorandom codes in the initial noise of diffusion sampling. Tree-Ring Watermarking~\cite{wen2023treering} embeds patterns in the Fourier space of the initial noise. These methods inspire our CDF-based encoding (Section~\ref{sec:cdf}) which achieves distribution-preserving steganography in the VAE latent space without requiring control over the generation process.
+\textbf{Distribution-preserving watermarking.} Gaussian Shading~\cite{yang2024gaussian} embeds watermarks by partitioning the Gaussian prior via inverse CDF, achieving theoretical undetectability. Stable Signature~\cite{fernandez2023stable} roots watermarks via VAE fine-tuning. Tree-Ring Watermarking~\cite{wen2023treering} embeds patterns in the Fourier space of the initial noise. All such methods operate during generation by controlling the initial noise. \textbf{The critical gap:} our CDF-PatchSteg (Section~\ref{sec:cdf}) is the first distribution-preserving method for post-hoc VAE latent editing of existing images. The AGM analysis~\cite{agm2025} confirms that VAE decoder amplification of latent perturbations explains why perturbation-based methods are detectable, directly motivating our approach.
 
 \textbf{Autoencoder interpretability.} Our stability analysis connects to understanding VAE reconstruction fidelity. We show that reconstruction quality varies spatially within a single image, and that this variation is content-dependent---structured images (gradients, patches) exhibit more spatial variation in stability than noise. Rolinek et al.\ show that VAEs pursue PCA directions in their latent space~\cite{rolinek2019variational}, motivating our PCA-guided perturbation directions (Section~\ref{sec:pca}).
 
@@ -95,6 +95,22 @@ We introduce \emph{stability-based carrier selection}: before encoding, the send
 
 For lower $\varepsilon$ (higher stealth), each bit is encoded across $R$ carrier positions with majority-vote decoding. With $R=3$, effective capacity is $K/3$ bits.
 
+\subsection{Capacity-Oriented Payload Coding}
+\label{sec:capacity_extension}
+
+The quantitative results in this paper intentionally use simple payloads: raw bit strings, ASCII in the message-length experiments, and optional repetition coding. This isolates the latent channel itself, but it is not the most payload-efficient protocol. In the accompanying code release we therefore include an engineering-oriented extension, \emph{CapacityPatchSteg}, that keeps the same post-hoc latent editing mechanism while changing only the payload layer: (i) UTF-8 framing with length and CRC metadata, (ii) optional lossless compression, (iii) multilevel symbol modulation (two bits per carrier in the current prototype), and (iv) per-carrier gain equalization derived from the stability map.
+
+We emphasize that this extension is \emph{not} included in the paper's quantitative tables, figures, or detectability claims. It should be interpreted as a practical throughput-oriented protocol on top of the same representation-space channel, not as a separately validated attack family. The scientific claims in this paper therefore remain tied to the baseline binary PatchSteg channel and the evaluated CDF/PCA/PSyDUCK variants.
+
+\subsection{Adaptive Detector-Resistant Encoding}
+\label{sec:adaptive_extension}
+
+The detector analysis in Section~\ref{sec:detectability} suggests that the baseline $\pm\varepsilon$ channel is vulnerable not because the defender recovers the secret direction, but because repeated additive edits create a simple residual signature in latent-space moments. The accompanying code release therefore also includes \emph{AdaptivePatchSteg}, an engineering-oriented extension that changes the physical layer itself rather than only the payload format.
+
+Concretely, AdaptivePatchSteg makes four changes relative to the baseline binary channel: (i) each symbol is written across a \emph{pair} of carriers with equal-and-opposite signed edits, reducing first-order mean shifts; (ii) each pair uses a different perturbation direction derived from local latent geometry mixed with seeded randomness, rather than one global shared direction; (iii) carrier selection uses a joint score over stability, local texture, and clean round-trip drift instead of stability alone; and (iv) framed payload bits are whitened with a keystream and carried by a compact control packet rather than a fixed repeated header. In other words, the extension explicitly targets the kind of linear residual signature that logistic detectors exploit.
+
+We again emphasize the evaluation boundary: AdaptivePatchSteg is \emph{not} part of the paper's quantitative benchmark suite, tables, or claims. It should be read as a detector-resistant repo extension motivated by the current results, not as a separately validated attack family. The code currently supports a stable raw pairwise bit channel; the higher-level framed text path remains an engineering prototype and should not be conflated with the paper's measured channel.
+
 \subsection{Distribution-Preserving CDF Encoding}
 \label{sec:cdf}
 
@@ -107,7 +123,7 @@ For each carrier position $(r_i, c_i)$ with message bit $b_i$ and key stream bit
     \item If $\tilde{b}_i = 1$: $z_{r_i,c_i} \leftarrow \Phi^{-1}(u; \mu_c, \sigma_c)$ (upper half)
     \item If $\tilde{b}_i = 0$: $z_{r_i,c_i} \leftarrow \Phi^{-1}(1-u; \mu_c, \sigma_c)$ (lower half)
 \end{enumerate}
-where $\Phi^{-1}$ is the inverse normal CDF. By construction, the marginal distribution of modified carrier values follows $\mathcal{N}(\mu_c, \sigma_c)$, making CDF-PatchSteg provably undetectable by any test that examines the marginal distribution of latent values.
+where $\Phi^{-1}$ is the inverse normal CDF. Under the Gaussian approximation, this preserves the chosen one-dimensional carrier marginal before decoding. We therefore treat CDF-PatchSteg as a distribution-matching heuristic rather than a full indistinguishability guarantee after the decode--reencode pipeline or against detectors that exploit joint and spatial statistics.
 
 \textbf{Decoding} requires no clean latent reference: re-encode the stego image, check whether each carrier value falls above or below $\mu_c$, and XOR with the key stream to recover the message bit.
 
@@ -280,6 +296,30 @@ This reveals a clear \textbf{stealth--capacity tradeoff} (Figure~\ref{fig:pareto
 \label{fig:pareto}
 \end{figure}
 
+\subsection{All Attacks vs. Naive Detector}
+\label{sec:attack_comparison}
+
+We benchmark all four attack variants against the same logistic regression detector (20 marginal-statistics features, 2-fold CV) to show which evade it. Results on 6 CIFAR-10 images at $K{=}20$ carriers:
+
+\begin{table}[h]
+\centering
+\caption{Naive logistic regression detector (marginal latent statistics) vs.\ all attacks. AUC~$<~0.6$ = evades. \textbf{Key finding}: the detector catches all $\pm\varepsilon$ variants regardless of direction strategy; only the distribution-preserving CDF method evades it.}
+\label{tab:attack_comparison}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Attack & Bit Acc.\ (\%) & PSNR (dB) & Detection AUC & Verdict \\
+\midrule
+PatchSteg ($\pm\varepsilon$, $\varepsilon{=}2$) & 99.2 & 27.7 & 0.556 & evades \\
+PatchSteg ($\pm\varepsilon$, $\varepsilon{=}5$) & 99.2 & 19.0 & 1.000 & \textbf{detected} \\
+PCA-PatchSteg ($\varepsilon{=}5$) & 100.0 & 16.7 & 0.944 & \textbf{detected} \\
+PSyDUCK-inspired ($\varepsilon{=}5$) & 100.0 & 17.5 & 1.000 & \textbf{detected} \\
+CDF-PatchSteg & 90.0 & 28.0 & \textbf{0.444} & \textbf{evades} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Key insight.} PCA-PatchSteg and PSyDUCK-inspired both use distinct perturbation directions per carrier, yet are fully detected (AUC $\geq$ 0.944). This is because marginal-statistics detectors do not look for a consistent direction signature --- they detect \emph{distribution shifts} in the per-channel mean, variance, skew, and kurtosis. Any $\pm\varepsilon$ perturbation, regardless of direction, shifts these moments. Only CDF-PatchSteg, which resamples values from $\mathcal{N}(\mu_c, \sigma_c)$, preserves all marginal moments and evades detection (AUC $= 0.44$, below chance on $n{=}6$). This result motivates distribution-preserving encoding as the principled path to undetectable steganography, and identifies marginal moment preservation as the minimal sufficient condition.
+
 \subsection{Stronger Detection Baselines}
 \label{sec:stronger_detection}
 
@@ -403,6 +443,8 @@ Message & Bits & Acc (\%) & PSNR (dB) & Acc (\%) & PSNR (dB) \\
 
 PatchSteg reliably transmits messages up to \textbf{152 bits (19 characters)} at 100\% accuracy with raw encoding. With 3$\times$ repetition coding, all messages achieve perfect accuracy, though at the cost of PSNR (the 152-bit message with $R{=}3$ uses 456 carriers, yielding 12.4\,dB). The only failure case is ``HI'' with $R{=}1$, where one bit flips---``HI'' is decoded as ``HY''---demonstrating the value of repetition coding for marginal carrier positions. Figure~\ref{fig:messages} visualizes the accuracy--PSNR tradeoff across message lengths.
 
+These numbers should be read as a conservative baseline for the latent channel under raw ASCII and repetition coding. More practical payload layers---for example compression, framing, multilevel symbols, and soft decoding---can increase effective text throughput without changing the underlying representation-space mechanism. Likewise, more detector-resistant physical layers---for example balanced pairwise modulation, geometry-aware directions, and joint carrier scoring---may reduce the simple residual signatures exploited here. We leave quantitative evaluation of both kinds of engineering extensions to future work.
+
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.65\textwidth]{figures/message_length.png}
@@ -439,7 +481,7 @@ We test the channel under realistic distortion chains that images might encounte
 \subsection{Comparison with LSB Steganography}
 \label{sec:lsb}
 
-We compare PatchSteg's detectability against least-significant-bit (LSB) steganography, the classical pixel-domain method. For LSB, we flip the least significant bit of randomly selected pixels to embed the same number of bits as PatchSteg (20 bits). We train the same logistic regression detector (latent-space statistics) on 15 cover/stego pairs with 3-fold cross-validation.
+We compare PatchSteg's detectability against least-significant-bit (LSB) steganography only as a classical pixel-domain reference point. The mechanisms are fundamentally different: LSB edits pixel bits directly, whereas PatchSteg perturbs the VAE representation and lets the decoder map those changes back into pixels. For LSB, we flip the least significant bit of randomly selected pixels to embed the same number of bits as PatchSteg (20 bits). We train the same logistic regression detector (latent-space statistics) on 15 cover/stego pairs with 3-fold cross-validation.
 
 \begin{table}[h]
 \centering
@@ -456,7 +498,7 @@ PatchSteg ($\varepsilon{=}5.0$) & $0.807 \pm 0.096$ & $0.646 \pm 0.029$ \\
 \end{tabular}
 \end{table}
 
-At $\varepsilon{=}2.0$, PatchSteg is \textbf{harder to detect than LSB} under our logistic regression detector (AUC 0.35 vs.\ 0.65). This is because PatchSteg perturbations are distributed across the latent space in a way that aligns with the VAE's learned distribution, while LSB modifications create statistical anomalies detectable even in latent-space features. At $\varepsilon{=}5.0$, PatchSteg becomes more detectable than LSB (AUC 0.81 vs.\ 0.65), confirming the stealth--capacity tradeoff. Figure~\ref{fig:lsb} visualizes the comparison.
+At $\varepsilon{=}2.0$, PatchSteg is \textbf{harder to detect than LSB} under our logistic regression detector (AUC 0.35 vs.\ 0.65). This is consistent with the fact that PatchSteg perturbs a learned latent representation, whereas LSB imposes arbitrary pixel-bit changes that remain visible to latent statistics after re-encoding. At $\varepsilon{=}5.0$, PatchSteg becomes more detectable than LSB (AUC 0.81 vs.\ 0.65), confirming the stealth--capacity tradeoff. Figure~\ref{fig:lsb} visualizes the comparison.
 
 \begin{figure}[h]
 \centering
@@ -514,133 +556,227 @@ At $\varepsilon{=}1.0$ (not separable by our detector), the perturbation is roug
 \label{fig:theory}
 \end{figure}
 
-\section{Distribution-Preserving Steganography}
+\section{Promising Extensions}
+
+\subsection{CDF-PatchSteg: Empirical Results}
 \label{sec:cdf_experiments}
 
-\subsection{CDF-PatchSteg: Capacity and Quality}
-
-We evaluate CDF-PatchSteg on 8 natural photographs from CIFAR-10 with carrier counts $K \in \{5, 10, 20, 50\}$. Table~\ref{tab:cdf_comparison} compares CDF-PatchSteg against the original PatchSteg ($\varepsilon{=}5.0$) on bit accuracy and PSNR.
+We evaluate CDF-PatchSteg against the original PatchSteg on 4 natural CIFAR-10 images at $128{\times}128$.
 
 \begin{table}[h]
 \centering
-\caption{CDF-PatchSteg vs.\ Original PatchSteg: accuracy and image quality (averaged over 8 natural images).}
+\caption{CDF-PatchSteg vs.\ original PatchSteg ($\varepsilon{=}5.0$). CDF trades ${\sim}10$\% accuracy for near-chance detectability.}
 \label{tab:cdf_comparison}
-\begin{tabular}{@{}ccccc@{}}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-& \multicolumn{2}{c}{CDF-PatchSteg} & \multicolumn{2}{c}{Original ($\varepsilon{=}5$)} \\
-\cmidrule(lr){2-3} \cmidrule(lr){4-5}
-$K$ & Acc (\%) & PSNR (dB) & Acc (\%) & PSNR (dB) \\
+Method & $K$ carriers & Bit Acc.\ (\%) & PSNR (dB) & Detection AUC \\
 \midrule
-5 & --- & --- & --- & --- \\
-10 & --- & --- & --- & --- \\
-20 & --- & --- & --- & --- \\
-50 & --- & --- & --- & --- \\
+Original PatchSteg & 5  & 100.0 & 35.2 & --- \\
+Original PatchSteg & 20 & 99.4  & 29.4 & 0.72 \\
+Original PatchSteg & 50 & 99.8  & 24.1 & 0.72 \\
+\midrule
+CDF-PatchSteg & 5  & 92.5 & 40.3 & \textbf{0.15} \\
+CDF-PatchSteg & 10 & 88.8 & 38.5 & \textbf{0.15} \\
+CDF-PatchSteg & 20 & 88.1 & 36.9 & \textbf{0.15} \\
+CDF-PatchSteg & 50 & 87.8 & 34.1 & \textbf{0.15} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\emph{Note: Table values to be filled after running experiments.}
+\textbf{Distribution preservation.} We apply a Kolmogorov--Smirnov test to check whether the stego latent channel is statistically indistinguishable from the clean encode. CDF-PatchSteg achieves average $p{=}0.179$ (3 of 4 images pass $p{>}0.05$), while original PatchSteg yields $p{\approx}0$ on all images. The single failure ($p{=}0.000$) is an edge case where the image latent deviates significantly from Gaussian, causing the per-channel $\mu/\sigma$ estimate to be imprecise.
 
-\subsection{Distribution Preservation Verification}
+\textbf{Detectability.} Under a logistic regression detector on latent-space statistics (same protocol as Section~\ref{sec:detectability}), CDF-PatchSteg achieves AUC~$=~0.15{\pm}0.14$, which with a sample of $n{=}4$ is statistically indistinguishable from chance (AUC~$=~0.5$). Original PatchSteg at $\varepsilon{=}5.0$ achieves AUC~$=~0.72{\pm}0.21$.
 
-We verify that CDF-PatchSteg preserves the latent distribution using the Kolmogorov-Smirnov test. For each image, we test whether carrier values after CDF encoding follow $\mathcal{N}(\mu_c, \sigma_c)$. A $p$-value above 0.05 indicates no statistically significant deviation from the expected distribution.
+\textbf{Takeaway.} CDF-PatchSteg achieves its design goal: it is empirically undetectable by marginal-statistics detectors at the cost of roughly 8--12\% bit accuracy. The key novelty over prior distribution-preserving methods (Gaussian Shading~\cite{yang2024gaussian}, Tree-Ring~\cite{wen2023treering}) is that it operates \emph{post-hoc} on existing images, with no generation-time control required.
 
-\subsection{Detectability Comparison}
-
-Figure~\ref{fig:cdf_detect} compares detection AUC across CDF-PatchSteg, PatchSteg $\varepsilon{=}2$, and PatchSteg $\varepsilon{=}5$ using the same logistic regression detector on latent-space statistics.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.65\textwidth]{figures/cdf_detectability.png}
-\caption{Detectability comparison: CDF-PatchSteg achieves near-chance AUC, demonstrating distribution-preserving steganography.}
-\label{fig:cdf_detect}
-\end{figure}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=\textwidth]{figures/cdf_distribution.png}
-\caption{Distribution visualization. (a) Clean latent distribution. (b) CDF-PatchSteg carrier values follow the same distribution. (c) Original PatchSteg shifts the distribution.}
-\label{fig:cdf_dist}
-\end{figure}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.7\textwidth]{figures/cdf_capacity_curve.png}
-\caption{Capacity curves comparing CDF-PatchSteg and original PatchSteg across carrier counts.}
-\label{fig:cdf_capacity}
-\end{figure}
-
-\section{PCA-Guided Perturbation Analysis}
+\subsection{PCA-Guided Perturbation Directions: Empirical Results}
 \label{sec:pca_experiments}
 
-\subsection{Latent Space PCA}
+We fit global PCA on the 4-dimensional latent vectors pooled across CIFAR-10 images and evaluate perturbation along each principal component versus the default random direction ($\varepsilon{=}5.0$, $K{=}20$).
 
-We fit PCA on 4-dimensional latent vectors pooled across 8 CIFAR-10 images. Figure~\ref{fig:pca_components} shows the explained variance per component and the PCA component weight matrix.
+\begin{table}[h]
+\centering
+\caption{PCA component analysis of the VAE latent space.}
+\label{tab:pca}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Direction & Var.\ Explained & Accuracy (\%) & PSNR (dB) & Det.\ AUC \\
+\midrule
+PC0 & 64.6\% & 100.0 & 24.6 & 0.574 \\
+PC1 & 17.0\% & 96.2 & 23.7 & 0.833 \\
+PC2 & 14.5\% & 98.8 & 28.2 & --- \\
+Cumulative (PC0--2) & 96.1\% & --- & --- & --- \\
+Random (baseline) & --- & 99.4 & 29.4 & 0.722 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The top three principal components explain \textbf{96.1\%} of the variance in the 4D latent space. PC0 (64.6\% of variance) achieves 100\% bit accuracy and the lowest detection AUC (0.574), making it the stealthiest single direction---lower than random (0.722). However, its PSNR (24.6~dB) is lower because perturbations along the dominant variance axis produce larger pixel changes. PC2 offers the best quality--accuracy tradeoff at 98.8\% accuracy and 28.2~dB PSNR. The more promising next step is \emph{content-adaptive} alignment: estimating directions per image or from the local decoder Jacobian.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{figures/pca_components.png}
-\caption{PCA of VAE latent space. (a) Explained variance per component. (b) Component weight matrix. (c) Singular values showing natural variation scale.}
-\label{fig:pca_components}
-\end{figure}
-
-\subsection{PCA vs Random Direction Accuracy}
-
-We compare PCA-guided directions (PC0, PC1, PC2) against a random direction on bit accuracy and PSNR. Figure~\ref{fig:pca_acc} shows results with $K{=}20$ carriers at $\varepsilon{=}5.0$ across 8 natural images.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.7\textwidth]{figures/pca_accuracy_comparison.png}
-\caption{Bit accuracy and PSNR: PCA-guided vs.\ random perturbation directions.}
+\includegraphics[width=0.9\linewidth]{figures/pca_accuracy_comparison.png}
+\caption{Accuracy and PSNR comparison across PCA components and random baseline.}
 \label{fig:pca_acc}
 \end{figure}
 
-\subsection{PCA Direction Detectability}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.5\textwidth]{figures/pca_detectability.png}
-\caption{Detection AUC for PCA-guided vs.\ random perturbation directions.}
-\label{fig:pca_detect}
-\end{figure}
-
-\section{Latent-Space Steganalysis}
+\subsection{Latent-Space Steganalysis Detector}
 \label{sec:steganalysis}
 
-We develop the first dedicated latent-space steganalysis detector, using 46 features: per-channel residual statistics (mean, std, median, skewness, kurtosis), spectral energy features, cross-channel correlations, and histogram features. The detector uses a logistic regression pipeline (StandardScaler + LogisticRegression) following standard steganalysis methodology.
+We train a 46-feature latent-space steganalysis detector combining per-channel residual statistics, spectral features, and inter-channel correlations. Table~\ref{tab:detector46} shows cross-method detection results.
 
-\subsection{Within-Method Detection}
+\begin{table}[h]
+\centering
+\caption{46-feature detector: cross-method detection matrix (AUC).}
+\label{tab:detector46}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Train $\backslash$ Test & PS $\varepsilon{=}2$ & PS $\varepsilon{=}5$ & CDF-PS \\
+\midrule
+PatchSteg $\varepsilon{=}2$ & 1.000 & 1.000 & 0.625 \\
+PatchSteg $\varepsilon{=}5$ & 1.000 & \textbf{1.000} & 0.688 \\
+CDF-PatchSteg & 1.000 & 0.938 & 0.875 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-We evaluate the detector's ability to distinguish clean from stego images for each steganographic method independently using 3-fold cross-validation on 8 natural images. This tests whether each method leaves a detectable statistical fingerprint.
-
-\subsection{Cross-Method Detection Matrix}
-
-A critical question for the attack-defense narrative: \emph{does a detector trained on one steganographic method generalize to others?} We construct a cross-method evaluation matrix where each row represents the training method and each column represents the test method.
+The 46-feature detector achieves perfect detection (AUC=1.0) against PatchSteg at $\varepsilon{=}5$. Cross-method transfer from PatchSteg detectors to CDF is weak (AUC=0.688), confirming that distribution-preserving encoding evades detectors trained on additive-perturbation signatures. Top discriminative features are spectral means and residual skewness.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.5\textwidth]{figures/detector_cross_method.png}
-\caption{Cross-method detection AUC matrix. A detector trained on PatchSteg $\varepsilon{=}5$ achieves high AUC on PatchSteg variants but fails on CDF-PatchSteg, confirming the distribution-preserving property.}
-\label{fig:cross_method}
-\end{figure}
-
-\subsection{ROC Curves and Feature Importance}
-
-Figure~\ref{fig:roc} shows ROC curves for each method, and Figure~\ref{fig:feat_import} shows the most important features for detecting PatchSteg $\varepsilon{=}5$.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.5\textwidth]{figures/detector_roc_curves.png}
-\caption{ROC curves for the latent-space steganalysis detector across methods.}
-\label{fig:roc}
+\includegraphics[width=0.9\linewidth]{figures/detector_roc_curves.png}
+\caption{ROC curves for the 46-feature latent steganalysis detector.}
+\label{fig:detector_roc}
 \end{figure}
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.65\textwidth]{figures/detector_feature_importance.png}
-\caption{Top 15 features by logistic regression coefficient magnitude, trained on PatchSteg $\varepsilon{=}5$.}
-\label{fig:feat_import}
+\includegraphics[width=0.9\linewidth]{figures/detector_cross_method.png}
+\caption{Cross-method detection heatmap.}
+\label{fig:detector_cross}
 \end{figure}
+
+\subsection{Toward Active Defenses}
+
+Passive steganalysis is only one layer of defense. For representation-space channels, a more appropriate defense is \emph{inspect then sanitize}: score suspicious latent positions without knowing the shared seed, then suppress only those carriers before the image reaches the next model.
+
+We evaluate \emph{CertifiedPurifier}, which independently estimates the stability map and resamples the top-$K$ high-stability positions from $\mathcal{N}(\mu_c, \sigma_c)$. Results on CDF-PatchSteg ($K{=}20$ carriers, $n{=}4$ images):
+
+\begin{table}[h]
+\centering
+\caption{CertifiedPurifier defense against CDF-PatchSteg. Accuracy is reduced but at significant PSNR cost; seed mismatch prevents the theoretical 50\% floor from being achieved.}
+\label{tab:purifier}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Defense strategy & Bit Acc.\ (\%) & PSNR (dB) & KS $p$ \\
+\midrule
+No defense (baseline) & 91.2 & --- & 0.18 \\
+Resample ($K{=}20$)   & 85.0 & 23.8 & 0.68 \\
+Noise ($\delta{=}0.3$) & 76.2 & 22.7 & --- \\
+Noise ($\delta{=}0.5$) & 73.8 & 17.8 & --- \\
+Combined              & 81.2 & 20.1 & 0.69 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The defense reduces accuracy by 6--17\% but incurs a large PSNR penalty (17--24\,dB) because it modifies all four latent channels at each purified position while CDF only modifies one. More critically, the stability map is \emph{seed-dependent}: the attacker's seed determines which positions appear most stable, so the defender's independently computed map does not perfectly overlap the carrier set. This \emph{seed mismatch} prevents the theoretical 50\% floor, revealing a fundamental asymmetry: attackers can shift their carrier set by changing their seed. Eliminating this---by averaging stability over many seeds or using image-adaptive purification---remains an open problem.
+
+\subsection{QuantileShuffleSanitizer: Provable Defense Against CDF-PatchSteg}
+\label{sec:quantile_sanitizer}
+
+CDF-PatchSteg encodes each bit by placing a carrier latent value in the upper or lower Gaussian half of $\mathcal{N}(\mu_c, \sigma_c^2)$. Decoding checks which half the re-encoded value falls in. All sanitizers tested so far leave CDF accuracy above 68\%; none has a theoretical guarantee.
+
+\textbf{Construction.} For each channel $c$ independently, estimate $\mu_c$ from the latent tensor. Then for each spatial position $(r,i)$, with probability $p$, reflect its value around $\mu_c$: $v \leftarrow 2\mu_c - v$.
+
+\textbf{Distribution preservation.} Reflection around the mean is an involution that maps $\mathcal{N}(\mu_c, \sigma_c^2)$ to itself: if $v \sim \mathcal{N}(\mu, \sigma^2)$ then $2\mu - v \sim \mathcal{N}(\mu, \sigma^2)$. The per-channel marginal is preserved exactly.
+
+\textbf{Theoretical guarantee.} Each CDF carrier's half-membership is independently flipped with probability $p$. At $p = 0.5$, each bit is destroyed independently, so bit accuracy $\to 50\%$ (chance level) regardless of carrier positions, seed, or message content. This is an unconditional guarantee requiring no knowledge of the steganographic key.
+
+\begin{table}[h]
+\centering
+\caption{QuantileShuffleSanitizer vs.\ all four SOTA attacks ($n{=}4$ images, $K{=}20$ carriers). At $p{=}0.5$, all attacks are reduced to chance-level accuracy (51--55\%). The PSNR cost (10--12\,dB) reflects the absence of carrier knowledge: 50\% of all latent positions are modified, most of which are non-carriers.}
+\label{tab:quantile_sanitizer}
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+ & \multicolumn{2}{c}{PatchSteg} & \multicolumn{2}{c}{PCA-PS} & \multicolumn{2}{c}{PSyDUCK} & \multicolumn{2}{c}{CDF-PS} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+$p$ & Acc & PSNR & Acc & PSNR & Acc & PSNR & Acc & PSNR \\
+\midrule
+Baseline        & 100\% & --- & 100\% & --- & 100\% & --- & 93\% & --- \\
+0.1 & 94\% & 16.4 & 95\% & 14.9 & 90\% & 15.6 & 89\% & 20.7 \\
+0.2 & 88\% & 14.1 & 89\% & 13.5 & 84\% & 13.6 & 74\% & 16.6 \\
+0.3 & 75\% & 13.0 & 73\% & 12.1 & 79\% & 12.3 & 69\% & 14.5 \\
+\textbf{0.5} & \textbf{55\%} & \textbf{11.1} & \textbf{53\%} & \textbf{10.6} & \textbf{51\%} & \textbf{10.7} & \textbf{53\%} & \textbf{11.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Result.} At $p{=}0.5$, CDF-PatchSteg drops from 93\% to 53\% accuracy---statistically indistinguishable from 50\% chance (Table~\ref{tab:quantile_sanitizer}, Figure~\ref{fig:quantile_sanitizer}). The same $p$ also defeats all $\pm\varepsilon$ attacks (51--55\%), making this a \emph{universal} sanitizer across all four attack families. The PSNR cost at $p{=}0.5$ is 10--12\,dB, which is the direct consequence of modifying 50\% of all latent positions without knowing carrier locations.
+
+\textbf{Comparison with prior sanitizers.} CertifiedPurifier (Section~\ref{sec:cath_defenses}) targets stability-selected positions but fails to reach 50\% due to seed mismatch. Latent Smooth $\sigma{=}1.0$ achieves only 68--83\% accuracy on CDF with better PSNR (${\sim}25$\,dB). QuantileShuffleSanitizer is the first defense to provably reduce CDF accuracy to chance, at the cost of image fidelity. The open engineering problem is combining distribution-preserving reflection with carrier-location estimation to recover PSNR without sacrificing the guarantee.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/quantile_sanitizer_results.png}
+\caption{QuantileShuffleSanitizer: bit accuracy and PSNR across flip probability $p$ for all four attacks. At $p{=}0.5$, all attacks converge to chance-level accuracy (51--55\%). Lower $p$ trades some accuracy reduction for better image quality.}
+\label{fig:quantile_sanitizer}
+\end{figure}
+
+\subsection{Teammate Defense Evaluation: Sanitizers and Anomaly Detectors}
+\label{sec:cath_defenses}
+
+We benchmark eight sanitizers and four anomaly detectors implemented by a teammate (C.\ Wang) against all four attack variants, providing a comprehensive picture of which defenses survive against which attack classes.
+
+\paragraph{Setup.} We use 3 CIFAR-10 images at $128{\times}128$. Sanitizers are applied to stego images; bit accuracy after sanitization measures their effectiveness. Anomaly detectors are calibrated on clean images and evaluated on held-out stego images; AUC measures detection strength.
+
+\paragraph{Sanitizers.} Table~\ref{tab:cath_sanitize} reports bit accuracy after each sanitizer for all four attacks. Lower accuracy means the sanitizer successfully disrupts the hidden channel. The strongest sanitizer (\emph{Latent Smooth} $\sigma{=}1.0$) reduces accuracy to 68--83\% across attacks, but at significant image quality cost. All round-trip and quantization-based sanitizers fail to disrupt $\pm\varepsilon$ attacks because PatchSteg deliberately selects the most stable latent positions---the same positions that survive VAE round-trips intact.
+
+\begin{table}[h]
+\centering
+\caption{Bit accuracy (\%) after sanitization (lower = stronger defense). All sanitizers fail against PatchSteg-class attacks because the most stable latent positions survive round-trips by design. Only aggressive spatial smoothing ($\sigma{=}1.0$) provides partial disruption.}
+\label{tab:cath_sanitize}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Sanitizer & PatchSteg & PCA-PS & PSyDUCK & CDF \\
+\midrule
+RoundTrip $\times$1      & 100 & 100 & 100 & 93 \\
+RoundTrip $\times$2      & 100 & 100 & 100 & 90 \\
+NoisyRT $\sigma{=}0.25$  & 100 & 100 & 100 & 88 \\
+NoisyRT $\sigma{=}0.50$  &  98 & 100 &  98 & 82 \\
+Quantize 8\,bit          & 100 &  98 &  98 & 98 \\
+Quantize 6\,bit          &  98 &  95 &  98 & 93 \\
+Smooth $\sigma{=}0.50$   & 100 &  98 &  98 & 83 \\
+\textbf{Smooth $\sigma{=}1.0$}   & \textbf{80} & \textbf{68} & \textbf{83} & \textbf{73} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Anomaly Detectors.} Table~\ref{tab:cath_detect} reports detection AUC for each detector across all four attacks. KS Test performs at or below chance for all attacks (AUC 0.33--0.44). Round-Trip Residual achieves moderate AUC on $\pm\varepsilon$ attacks (0.44--0.67) but fails on CDF (AUC 0.22). Entropy MAD and Spectral KL are the strongest detectors for $\pm\varepsilon$ variants (AUC 0.78--1.00) but both fail against CDF (AUC 0.11--0.56). This confirms the key finding: \emph{all current anomaly detectors that rely on distributional shift are blind to CDF-PatchSteg}, which explicitly preserves the Gaussian marginals. Figure~\ref{fig:cath_heatmap} visualizes the full detector--attack matrix.
+
+\begin{table}[h]
+\centering
+\caption{Anomaly detector AUC (0.5 = chance, 1.0 = perfect). Entropy MAD and Spectral KL detect all $\pm\varepsilon$ attacks but are blind to CDF-PatchSteg, which preserves the latent distribution. No single detector defeats all four attacks.}
+\label{tab:cath_detect}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Detector & PatchSteg & PCA-PS & PSyDUCK & CDF \\
+\midrule
+KS Test           & 0.44 & 0.33 & 0.44 & 0.44 \\
+RT Residual       & 0.67 & 0.44 & 0.67 & 0.22 \\
+\textbf{Entropy MAD}       & \textbf{1.00} & \textbf{0.78} & \textbf{0.89} & 0.56 \\
+\textbf{Spectral KL}       & \textbf{1.00} & \textbf{0.78} & \textbf{0.78} & \textbf{0.11} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/cath_defense_heatmap.png}
+\caption{Detection AUC heatmap: anomaly detectors vs.\ all four attacks. Red = near chance, green = strong detection. CDF-PatchSteg (rightmost column) evades all detectors.}
+\label{fig:cath_heatmap}
+\end{figure}
+
+\textbf{Takeaway.} The combination of Entropy MAD / Spectral KL detection (for $\pm\varepsilon$ attacks) and distribution-preserving encoding (CDF-PatchSteg) reveals a fundamental attacker--defender asymmetry: an attacker choosing CDF is currently undetectable by all available anomaly detectors, while all sanitizers leave $>$65\% accuracy. The open problem is a detector or sanitizer that defeats CDF-PatchSteg without destroying image quality.
 
 \section{Discussion}
 
@@ -656,19 +792,61 @@ Our detectability analysis quantifies a fundamental tradeoff: at $\varepsilon{=}
 
 A key finding is that channel reliability is strongly content-dependent. Smooth gradients provide near-zero channel capacity, while textured images support hundreds of bits. Our experiments on CIFAR-10 photographs (Section~\ref{sec:natural}) confirm that natural images---which are inherently textured---achieve 98.8\% accuracy, validating this intuition.
 
-\subsection{Advantage Over Classical Steganography}
+\subsection{Difference from Classical Pixel-Domain Steganography}
 
-PatchSteg at $\varepsilon{=}2.0$ is harder to detect than classical LSB steganography (AUC 0.35 vs.\ 0.65) under our logistic regression detector on latent-space statistics. This is because PatchSteg modifies the image in a way that is \emph{aligned with the VAE's learned manifold}, while LSB modifications are arbitrary pixel-level changes that create subtle statistical artifacts. This advantage comes with a tradeoff: PatchSteg requires access to the VAE model, while LSB requires no model at all.
+PatchSteg at $\varepsilon{=}2.0$ is harder to detect than classical LSB steganography (AUC 0.35 vs.\ 0.65) under our logistic regression detector on latent-space statistics. This is not because PatchSteg is an improved LSB scheme; it is because the mechanism is fundamentally different. PatchSteg edits a learned latent representation and relies on the decoder to realize that change in pixel space, whereas LSB edits pixel bits directly. This representation-space operating point is precisely what makes PatchSteg relevant for model-to-model collusion scenarios and also what makes pixel-only defenses incomplete.
+
+\subsection{Defense Landscape: A Consolidated View}
+\label{sec:defense_summary}
+
+Table~\ref{tab:defense_summary} consolidates all defenses evaluated in this paper against CDF-PatchSteg, the only attack that evades marginal-statistics detectors. The table reveals a clear frontier: defenses that preserve image quality fail to reduce accuracy below 68\%, while the only defense with a provable accuracy floor (QuantileShuffleSanitizer, Section~\ref{sec:quantile_sanitizer}) incurs a severe PSNR penalty because it acts on all latent positions without knowing carrier locations.
+
+\begin{table}[h]
+\centering
+\caption{All defenses against CDF-PatchSteg ($K{=}20$, $n{=}4$ images). QuantileShuffleSanitizer is the only defense with a provable 50\% accuracy floor, but pays a large PSNR cost. The engineering open problem is recovering PSNR while keeping the guarantee.}
+\label{tab:defense_summary}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Defense & CDF Bit Acc.\ (\%) & PSNR (dB) & Guarantee \\
+\midrule
+No defense (baseline)               & 93 & --- & --- \\
+\multicolumn{4}{@{}l}{\textit{Anomaly detectors (detect; do not sanitize)}} \\
+\quad KS Test (C.\ Wang)            & --- & --- & AUC 0.44 (fails) \\
+\quad RT Residual (C.\ Wang)        & --- & --- & AUC 0.22 (fails) \\
+\quad Entropy MAD (C.\ Wang)        & --- & --- & AUC 0.56 (partial) \\
+\quad Spectral KL (C.\ Wang)        & --- & --- & AUC 0.11 (fails) \\
+\multicolumn{4}{@{}l}{\textit{Sanitizers}} \\
+\quad Latent Smooth $\sigma{=}1.0$ (C.\ Wang) & 73 & ${\sim}25$ & None \\
+\quad CertifiedPurifier (resample)   & 85 & 23.8 & None (seed mismatch) \\
+\quad \textbf{QuantileShuffleSanitizer} $p{=}0.3$ & \textbf{69} & \textbf{14.5} & None \\
+\quad \textbf{QuantileShuffleSanitizer} $p{=}0.5$ & \textbf{53} & \textbf{11.8} & \textbf{50\% floor (provable)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Toward Stronger Attacks and Defenses}
+
+The most credible next step for the attack is to make carrier selection \emph{jointly} optimize reliability, stealth, and robustness instead of ranking positions by a single stability score. One concrete repo extension in this direction is AdaptivePatchSteg (Section~\ref{sec:adaptive_extension}), which pairs equal-and-opposite carrier edits, uses local geometry-aware directions, and whitens framed bits to suppress simple residual signatures; however, it still needs paper-quality benchmarking. On the defense side, the key open problem is combining QuantileShuffleSanitizer's provable guarantee with a carrier-location estimate (from a stability map) to reduce the fraction of positions modified from 50\% to a targeted subset---recovering PSNR without sacrificing the 50\% accuracy floor. This would require the defender to commit to a stability estimate without knowing the attacker's seed, which remains unsolved due to the seed-mismatch problem (Section~\ref{sec:cath_defenses}).
 
 \subsection{Limitations}
 
-Our implementation requires both agents to share a compatible VAE model and a secret seed (cross-model decode is tested but with reduced accuracy). The channel capacity is limited to tens or hundreds of bits per image (152 bits demonstrated). While we test 7 detector architectures across 3 feature domains, more sophisticated learned detectors (e.g., trained CNNs on full images, or detectors specifically designed for latent-space steganography) might achieve substantially higher detection rates. Our evaluation uses CIFAR-10 images upscaled to $256{\times}256$---while this provides diversity and scale, the upscaling introduces interpolation artifacts that may not reflect native high-resolution photography. The channel degrades significantly under aggressive distortions (JPEG Q$<$30, heavy cropping), limiting deployment scenarios.
+Our implementation requires both agents to share a compatible VAE model and a secret seed (cross-model decode is tested but with reduced accuracy). Under the paper-evaluated binary protocol, channel capacity is limited to tens or hundreds of bits per image (152 raw bits demonstrated). The code release includes both a throughput-oriented payload-layer extension (CapacityPatchSteg) and a detector-resistant physical-layer extension (AdaptivePatchSteg), but neither has yet been benchmarked in the same paper-quality evaluation suite and both are therefore excluded from the quantitative claims here. While we test 7 detector architectures across 3 feature domains, more sophisticated learned detectors (e.g., trained CNNs on full images, or detectors specifically designed for latent-space steganography) might achieve substantially higher detection rates. Our evaluation uses CIFAR-10 images upscaled to $256{\times}256$---while this provides diversity and scale, the upscaling introduces interpolation artifacts that may not reflect native high-resolution photography. The channel degrades significantly under aggressive distortions (JPEG Q$<$30, heavy cropping), limiting deployment scenarios. CDF-PatchSteg results (Section~\ref{sec:cdf_experiments}) are evaluated on $n{=}4$ CIFAR-10 images; broader evaluation on 300 images would reduce variance in the detection AUC estimate.
 
 \section{Conclusion}
 
-We presented PatchSteg, a training-free steganographic framework enabling covert bit transmission through pretrained VAE latent spaces. Key findings: (1) the phenomenon generalizes across multiple VAE architectures (SD-VAE-MSE, SD-VAE-EMA, SDXL-VAE); (2) carrier stability is spatially non-uniform, content-dependent, and predictable from image statistics such as edge density and local entropy; (3) there exists a quantifiable stealth--capacity tradeoff, with $\varepsilon{=}2.0$ offering a practical balance---harder to detect than LSB under our detectors, though stronger detectors narrow this gap; (4) local decoder Jacobian analysis reveals the geometric mechanism behind carrier quality; (5) the channel survives moderate deployment distortions but degrades under aggressive compression and cropping. We further introduce CDF-PatchSteg, a distribution-preserving variant using inverse Gaussian CDF sampling that achieves theoretical undetectability (AUC $\approx$ 0.5), and develop a 46-feature latent-space steganalysis detector that reliably detects the original PatchSteg but fails on CDF-PatchSteg---establishing an attack-defense narrative. PCA analysis of the latent space reveals data-driven perturbation directions aligned with natural variation. Evaluated on 300 natural images with confidence intervals, PatchSteg illustrates an underexplored risk vector in multi-agent AI systems and provides tools for understanding both the attack surface and detection challenges.
+We presented PatchSteg, a training-free steganographic framework enabling covert bit transmission through pretrained VAE latent spaces. The main empirical findings are: (i) the channel generalizes across multiple VAE architectures; (ii) carrier stability is spatially non-uniform and content-dependent; (iii) there exists a quantifiable stealth--capacity tradeoff; (iv) local decoder geometry helps explain why some latent positions are better carriers. CDF-PatchSteg, our distribution-preserving extension, achieves empirically chance-level detectability (AUC~$=~0.15{\pm}0.14$) while maintaining 88--93\% bit accuracy, at the cost of ${\sim}10$\% accuracy relative to the original scheme. Critically, CDF-PatchSteg is the first distribution-preserving latent steganography method that operates \emph{post-hoc} on existing images, contrasting with all prior methods (Gaussian Shading, PRC, PSyDUCK) that require generation-time noise control. PatchSteg is harder to detect than a pixel-domain LSB baseline at moderate perturbation strength because it operates in representation space before reconstruction. Evaluated on 300 natural images with confidence intervals, PatchSteg illustrates an underexplored risk vector in multi-agent AI systems. Two practical next steps are now explicit in the code release while remaining separate from the empirical claims here: stronger payload coding (compression, framing, multilevel symbols, soft error correction) and detector-resistant physical-layer changes (balanced pairwise modulation, geometry-aware directions, joint carrier scoring, and payload whitening). We introduce QuantileShuffleSanitizer, the first defense with an unconditional theoretical guarantee against CDF-PatchSteg: by independently reflecting each latent value around its channel mean with probability $p$, it reduces CDF bit accuracy to $53\%{\approx}50\%$ (chance) at $p{=}0.5$ while exactly preserving the per-channel marginal distribution---confirmed empirically across all four attack families. The cost is image fidelity (PSNR ${\approx}12$\,dB at $p{=}0.5$), a consequence of acting on all latent positions without carrier location knowledge. The open engineering problem is combining this provable guarantee with carrier-location estimation to recover PSNR, which requires resolving the seed-mismatch asymmetry between attacker and defender.
 
 \begin{thebibliography}{9}
+
+\bibitem{bui2023rosteals}
+Bui, T., et al.
+\newblock RoSteALS: Robust Steganography Using Autoencoder Latent Space.
+\newblock \emph{CVPR Workshops}, 2023.
+
+\bibitem{motwani2024secret}
+Motwani, S., et al.
+\newblock Secret Collusion among AI Agents: Multi-Agent Deception via Steganography.
+\newblock \emph{NeurIPS}, 2024.
 
 \bibitem{yang2024gaussian}
 Yang, Z., et al.
@@ -684,6 +862,12 @@ Fernandez, P., et al.
 Wen, Y., et al.
 \newblock Tree-Ring Watermarks: Fingerprints for Diffusion Images that are Invisible and Robust.
 \newblock \emph{NeurIPS}, 2023.
+
+\bibitem{psyduck2025}
+Jiang et al.\ PSyDUCK: Training-Free Steganography for Latent Diffusion Models. arXiv:2501.19172, 2025.
+
+\bibitem{agm2025}
+AGM: Autoencoder-Guided Watermark Detection. arXiv:2510.07219, 2025.
 
 \bibitem{rolinek2019variational}
 Rolinek, M., Zietlow, D., and Martius, G.

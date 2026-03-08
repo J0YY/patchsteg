@@ -32,7 +32,7 @@ from core.steganography import PatchSteg
 from core.pca_directions import PCADirections, PCAPatchSteg
 from core.metrics import compute_psnr, bit_accuracy
 
-IMG_SIZE = 256
+IMG_SIZE = 128  # 128 runs ~4x faster than 256 on CPU
 FIG_DIR = Path(__file__).resolve().parent.parent / 'paper' / 'figures'
 FIG_DIR.mkdir(exist_ok=True)
 
@@ -40,7 +40,7 @@ torch.manual_seed(42)
 np.random.seed(42)
 
 
-def get_natural_images(n=8):
+def get_natural_images(n=4):
     """Get natural photos from CIFAR-10."""
     from torchvision.datasets import CIFAR10
     print("  Downloading CIFAR-10 (first time only)...", flush=True)
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     vae = StegoVAE(device='cpu', image_size=IMG_SIZE)
     print(f"VAE loaded ({time.time()-t_total:.0f}s)", flush=True)
 
-    nat_images, nat_names = get_natural_images(8)
+    nat_images, nat_names = get_natural_images(4)
 
     # ================================================================
     # 1. FIT PCA ON LATENT SPACE
@@ -227,7 +227,7 @@ if __name__ == '__main__':
     print("# 3. DETECTABILITY: PCA vs RANDOM", flush=True)
     print("#"*60, flush=True)
 
-    cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+    cv = StratifiedKFold(n_splits=2, shuffle=True, random_state=42)
     detect_results = {}
 
     for method_name, component in [('PCA-PC0', 0), ('PCA-PC1', 1), ('Random', None)]:
