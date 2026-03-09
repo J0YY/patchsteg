@@ -160,6 +160,7 @@ class Actor:
 
 class Monitor:
     """
+    An auditing monitor
     Inspects / sanitizes images before they reach the receiver.
 
     Returns (output_image, blocked):
