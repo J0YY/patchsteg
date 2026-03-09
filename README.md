@@ -2,7 +2,7 @@
 
 **Can a defender reliably neutralize covert image channels between AI agents — even when the attack is theoretically undetectable?**
 
-PatchSteg studies this question by implementing a progression of increasingly strong steganographic attacks (each grounded in a published paper) and building defenses against them. All attacks are training-free, operating directly on the latent space of a pretrained Stable Diffusion VAE. No fine-tuning, no auxiliary networks.
+PatchSteg studies this question by implementing a progression of increasingly strong steganographic attacks and building defenses against them. All attacks are training-free, operating directly on the latent space of a pretrained Stable Diffusion VAE.
 
 ---
 
