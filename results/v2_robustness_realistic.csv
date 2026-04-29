@@ -1,0 +1,141 @@
+epsilon,attack,image_index,bit_accuracy
+2.0,None,0,100.0
+2.0,None,1,100.0
+2.0,None,2,100.0
+2.0,None,3,100.0
+2.0,None,4,100.0
+2.0,None,5,100.0
+2.0,None,6,95.0
+2.0,None,7,100.0
+2.0,None,8,100.0
+2.0,None,9,100.0
+2.0,JPEG Q70 roundtrip,0,100.0
+2.0,JPEG Q70 roundtrip,1,100.0
+2.0,JPEG Q70 roundtrip,2,100.0
+2.0,JPEG Q70 roundtrip,3,100.0
+2.0,JPEG Q70 roundtrip,4,100.0
+2.0,JPEG Q70 roundtrip,5,100.0
+2.0,JPEG Q70 roundtrip,6,95.0
+2.0,JPEG Q70 roundtrip,7,95.0
+2.0,JPEG Q70 roundtrip,8,100.0
+2.0,JPEG Q70 roundtrip,9,100.0
+2.0,Social downscale+Q80,0,100.0
+2.0,Social downscale+Q80,1,100.0
+2.0,Social downscale+Q80,2,100.0
+2.0,Social downscale+Q80,3,100.0
+2.0,Social downscale+Q80,4,100.0
+2.0,Social downscale+Q80,5,100.0
+2.0,Social downscale+Q80,6,95.0
+2.0,Social downscale+Q80,7,95.0
+2.0,Social downscale+Q80,8,100.0
+2.0,Social downscale+Q80,9,100.0
+2.0,Screenshot sim,0,100.0
+2.0,Screenshot sim,1,100.0
+2.0,Screenshot sim,2,95.0
+2.0,Screenshot sim,3,95.0
+2.0,Screenshot sim,4,100.0
+2.0,Screenshot sim,5,100.0
+2.0,Screenshot sim,6,95.0
+2.0,Screenshot sim,7,85.0
+2.0,Screenshot sim,8,100.0
+2.0,Screenshot sim,9,100.0
+2.0,Noise sigma=0.10,0,100.0
+2.0,Noise sigma=0.10,1,80.0
+2.0,Noise sigma=0.10,2,95.0
+2.0,Noise sigma=0.10,3,85.0
+2.0,Noise sigma=0.10,4,100.0
+2.0,Noise sigma=0.10,5,65.0
+2.0,Noise sigma=0.10,6,90.0
+2.0,Noise sigma=0.10,7,90.0
+2.0,Noise sigma=0.10,8,100.0
+2.0,Noise sigma=0.10,9,70.0
+2.0,VAE re-encode,0,100.0
+2.0,VAE re-encode,1,100.0
+2.0,VAE re-encode,2,100.0
+2.0,VAE re-encode,3,100.0
+2.0,VAE re-encode,4,100.0
+2.0,VAE re-encode,5,100.0
+2.0,VAE re-encode,6,95.0
+2.0,VAE re-encode,7,100.0
+2.0,VAE re-encode,8,100.0
+2.0,VAE re-encode,9,100.0
+2.0,Appendix stress: JPEG Q10,0,80.0
+2.0,Appendix stress: JPEG Q10,1,95.0
+2.0,Appendix stress: JPEG Q10,2,95.0
+2.0,Appendix stress: JPEG Q10,3,65.0
+2.0,Appendix stress: JPEG Q10,4,75.0
+2.0,Appendix stress: JPEG Q10,5,95.0
+2.0,Appendix stress: JPEG Q10,6,100.0
+2.0,Appendix stress: JPEG Q10,7,50.0
+2.0,Appendix stress: JPEG Q10,8,70.0
+2.0,Appendix stress: JPEG Q10,9,85.0
+5.0,None,0,100.0
+5.0,None,1,100.0
+5.0,None,2,100.0
+5.0,None,3,100.0
+5.0,None,4,100.0
+5.0,None,5,100.0
+5.0,None,6,95.0
+5.0,None,7,95.0
+5.0,None,8,100.0
+5.0,None,9,100.0
+5.0,JPEG Q70 roundtrip,0,100.0
+5.0,JPEG Q70 roundtrip,1,100.0
+5.0,JPEG Q70 roundtrip,2,100.0
+5.0,JPEG Q70 roundtrip,3,100.0
+5.0,JPEG Q70 roundtrip,4,100.0
+5.0,JPEG Q70 roundtrip,5,100.0
+5.0,JPEG Q70 roundtrip,6,95.0
+5.0,JPEG Q70 roundtrip,7,95.0
+5.0,JPEG Q70 roundtrip,8,100.0
+5.0,JPEG Q70 roundtrip,9,100.0
+5.0,Social downscale+Q80,0,100.0
+5.0,Social downscale+Q80,1,100.0
+5.0,Social downscale+Q80,2,100.0
+5.0,Social downscale+Q80,3,100.0
+5.0,Social downscale+Q80,4,100.0
+5.0,Social downscale+Q80,5,100.0
+5.0,Social downscale+Q80,6,95.0
+5.0,Social downscale+Q80,7,90.0
+5.0,Social downscale+Q80,8,100.0
+5.0,Social downscale+Q80,9,100.0
+5.0,Screenshot sim,0,100.0
+5.0,Screenshot sim,1,100.0
+5.0,Screenshot sim,2,100.0
+5.0,Screenshot sim,3,100.0
+5.0,Screenshot sim,4,100.0
+5.0,Screenshot sim,5,100.0
+5.0,Screenshot sim,6,95.0
+5.0,Screenshot sim,7,90.0
+5.0,Screenshot sim,8,100.0
+5.0,Screenshot sim,9,100.0
+5.0,Noise sigma=0.10,0,100.0
+5.0,Noise sigma=0.10,1,95.0
+5.0,Noise sigma=0.10,2,100.0
+5.0,Noise sigma=0.10,3,100.0
+5.0,Noise sigma=0.10,4,100.0
+5.0,Noise sigma=0.10,5,100.0
+5.0,Noise sigma=0.10,6,95.0
+5.0,Noise sigma=0.10,7,95.0
+5.0,Noise sigma=0.10,8,100.0
+5.0,Noise sigma=0.10,9,100.0
+5.0,VAE re-encode,0,100.0
+5.0,VAE re-encode,1,100.0
+5.0,VAE re-encode,2,100.0
+5.0,VAE re-encode,3,100.0
+5.0,VAE re-encode,4,100.0
+5.0,VAE re-encode,5,100.0
+5.0,VAE re-encode,6,95.0
+5.0,VAE re-encode,7,95.0
+5.0,VAE re-encode,8,100.0
+5.0,VAE re-encode,9,100.0
+5.0,Appendix stress: JPEG Q10,0,95.0
+5.0,Appendix stress: JPEG Q10,1,95.0
+5.0,Appendix stress: JPEG Q10,2,100.0
+5.0,Appendix stress: JPEG Q10,3,95.0
+5.0,Appendix stress: JPEG Q10,4,100.0
+5.0,Appendix stress: JPEG Q10,5,100.0
+5.0,Appendix stress: JPEG Q10,6,90.0
+5.0,Appendix stress: JPEG Q10,7,90.0
+5.0,Appendix stress: JPEG Q10,8,100.0
+5.0,Appendix stress: JPEG Q10,9,100.0

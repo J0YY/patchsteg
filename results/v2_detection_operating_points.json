@@ -1,0 +1,869 @@
+{
+  "1.0": {
+    "LR-Latent": {
+      "auc_mean": 0.21666666666666665,
+      "auc_std": 0.0,
+      "acc_mean": 0.3,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 1.4857816274820048,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 30,
+          "tp": 0
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 1.4857816274820048,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 30,
+          "tp": 0
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 1.4771710022945659,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 30,
+          "tp": 0
+        }
+      }
+    },
+    "MLP-Latent": {
+      "auc_mean": 0.3499999999999999,
+      "auc_std": 0.0,
+      "acc_mean": 0.36666666666666664,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 1.0,
+          "achieved_fpr": 0.2,
+          "precision": 0.25,
+          "recall": 0.06666666666666667,
+          "tn": 24,
+          "fp": 6,
+          "fn": 28,
+          "tp": 2
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 1.0,
+          "achieved_fpr": 0.2,
+          "precision": 0.25,
+          "recall": 0.06666666666666667,
+          "tn": 24,
+          "fp": 6,
+          "fn": 28,
+          "tp": 2
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 1.0,
+          "achieved_fpr": 0.2,
+          "precision": 0.25,
+          "recall": 0.06666666666666667,
+          "tn": 24,
+          "fp": 6,
+          "fn": 28,
+          "tp": 2
+        }
+      }
+    },
+    "LR-Residual": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 0.9666666666666667,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -2.28466143415657,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -2.28466143415657,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -2.28466143415657,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "MLP-Residual": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.006875856588324782,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.006875856588324782,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.006875856588324782,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "LR-Spectral": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -4.582669736687188,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -4.582669736687188,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -4.582669736687188,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "LR-Combined": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -3.518199473927297,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -3.518199473927297,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -3.6948267396779038,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9375,
+          "recall": 1.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "MLP-Combined": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.015858287711653988,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.015858287711653988,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.012556216278366701,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9375,
+          "recall": 1.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    }
+  },
+  "2.0": {
+    "LR-Latent": {
+      "auc_mean": 0.8677777777777778,
+      "auc_std": 0.0,
+      "acc_mean": 0.75,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 1.3759703409320865,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.9285714285714286,
+          "recall": 0.43333333333333335,
+          "tn": 29,
+          "fp": 1,
+          "fn": 17,
+          "tp": 13
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 1.3759703409320865,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.9285714285714286,
+          "recall": 0.43333333333333335,
+          "tn": 29,
+          "fp": 1,
+          "fn": 17,
+          "tp": 13
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.8253994997307905,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.8823529411764706,
+          "recall": 0.5,
+          "tn": 28,
+          "fp": 2,
+          "fn": 15,
+          "tp": 15
+        }
+      }
+    },
+    "MLP-Latent": {
+      "auc_mean": 0.8222222222222223,
+      "auc_std": 0.0,
+      "acc_mean": 0.8,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.9999990762766873,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.8888888888888888,
+          "recall": 0.26666666666666666,
+          "tn": 29,
+          "fp": 1,
+          "fn": 22,
+          "tp": 8
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.9999990762766873,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.8888888888888888,
+          "recall": 0.26666666666666666,
+          "tn": 29,
+          "fp": 1,
+          "fn": 22,
+          "tp": 8
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.9999863253194979,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.8181818181818182,
+          "recall": 0.3,
+          "tn": 28,
+          "fp": 2,
+          "fn": 21,
+          "tp": 9
+        }
+      }
+    },
+    "LR-Residual": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 0.9833333333333333,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -3.270081528379237,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -3.270081528379237,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -3.270081528379237,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "MLP-Residual": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.0074394454264746415,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.0074394454264746415,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.0074394454264746415,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "LR-Spectral": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -4.582822011377039,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -4.582822011377039,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -4.582822011377039,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "LR-Combined": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -3.7154336033026563,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -3.7154336033026563,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -3.8991026721587554,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9375,
+          "recall": 1.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "MLP-Combined": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.011154098653434112,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.011154098653434112,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.00841145746700427,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9375,
+          "recall": 1.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    }
+  },
+  "5.0": {
+    "LR-Latent": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 0.9833333333333333,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -0.7053659709410414,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -0.7053659709410414,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -0.8888493167880449,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9375,
+          "recall": 1.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "MLP-Latent": {
+      "auc_mean": 0.9977777777777778,
+      "auc_std": 0.0,
+      "acc_mean": 0.9833333333333333,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.46210558845577476,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.9666666666666667,
+          "recall": 0.9666666666666667,
+          "tn": 29,
+          "fp": 1,
+          "fn": 1,
+          "tp": 29
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.46210558845577476,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.9666666666666667,
+          "recall": 0.9666666666666667,
+          "tn": 29,
+          "fp": 1,
+          "fn": 1,
+          "tp": 29
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.1972666805803269,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9354838709677419,
+          "recall": 0.9666666666666667,
+          "tn": 28,
+          "fp": 2,
+          "fn": 1,
+          "tp": 29
+        }
+      }
+    },
+    "LR-Residual": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -3.9868436474377704,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -3.9868436474377704,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -3.9868436474377704,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "MLP-Residual": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.005100170612176841,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.005100170612176841,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.005100170612176841,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "LR-Spectral": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -4.581836955349417,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -4.581836955349417,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -4.581836955349417,
+          "achieved_fpr": 0.2,
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "tn": 24,
+          "fp": 6,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "LR-Combined": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": -4.199518315787366,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": -4.199518315787366,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": -4.58031987872531,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9375,
+          "recall": 1.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    },
+    "MLP-Combined": {
+      "auc_mean": 1.0,
+      "auc_std": 0.0,
+      "acc_mean": 1.0,
+      "acc_std": 0.0,
+      "operating_points": {
+        "0.1%": {
+          "target_fpr": 0.001,
+          "threshold": 0.005596413012211272,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "1%": {
+          "target_fpr": 0.01,
+          "threshold": 0.005596413012211272,
+          "achieved_fpr": 0.03333333333333333,
+          "precision": 0.967741935483871,
+          "recall": 1.0,
+          "tn": 29,
+          "fp": 1,
+          "fn": 0,
+          "tp": 30
+        },
+        "5%": {
+          "target_fpr": 0.05,
+          "threshold": 0.004164626236114735,
+          "achieved_fpr": 0.06666666666666667,
+          "precision": 0.9375,
+          "recall": 1.0,
+          "tn": 28,
+          "fp": 2,
+          "fn": 0,
+          "tp": 30
+        }
+      }
+    }
+  }
+}

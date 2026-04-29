@@ -9,6 +9,7 @@ Tests multiple detector architectures on larger dataset:
   5. Spectral features (FFT of residual)
   6. Combined feature set (latent + pixel + spectral)
 All with proper train/test splits, ROC curves, and confidence intervals.
+Also reports precision/recall at fixed low-FPR operating points.
 """
 import sys, os
 os.environ['PYTHONUNBUFFERED'] = '1'
@@ -23,20 +24,31 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from pathlib import Path
 import time
+import json
+import csv
 from scipy import stats as sp_stats
+from sklearn.base import clone
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
 
 from core.vae import StegoVAE
 from core.steganography import PatchSteg
 from core.metrics import compute_psnr, bit_accuracy
 
 FIG_DIR = Path(__file__).resolve().parent.parent / 'paper' / 'figures'
+RESULTS_DIR = Path(__file__).resolve().parent.parent / 'results'
 IMG_SIZE = 256
 
 torch.manual_seed(42)
@@ -55,6 +67,38 @@ def extract_latent_features(vae, img):
         feats.extend([mu, sig, float(np.median(x)),
                       float(((x - mu)**3).mean() / sig**3),
                       float(((x - mu)**4).mean() / sig**4)])
+    return np.array(feats)
+
+
+def latent_features_from_tensor(latent):
+    """20 features: per-channel mean, std, median, skew, kurtosis."""
+    feats = []
+    for ch in range(4):
+        x = latent[0, ch].cpu().numpy().flatten()
+        mu, sig = x.mean(), x.std() + 1e-8
+        feats.extend([mu, sig, float(np.median(x)),
+                      float(((x - mu)**3).mean() / sig**3),
+                      float(((x - mu)**4).mean() / sig**4)])
+    return np.array(feats)
+
+
+def latent_features_extended_from_tensor(latent):
+    """40 features: latent stats + position-level stats."""
+    feats = []
+    for ch in range(4):
+        x2 = latent[0, ch].cpu().numpy()
+        x = x2.flatten()
+        mu, sig = x.mean(), x.std() + 1e-8
+        feats.extend([
+            mu, sig, float(np.median(x)),
+            float(((x - mu)**3).mean() / sig**3),
+            float(((x - mu)**4).mean() / sig**4),
+            float(np.percentile(x, 5)),
+            float(np.percentile(x, 95)),
+            float(np.max(x) - np.min(x)),
+            float(np.percentile(x, 75) - np.percentile(x, 25)),
+            float(np.abs(np.diff(x2, axis=1)).mean()),
+        ])
     return np.array(feats)
 
 
@@ -157,12 +201,64 @@ def make_test_images(n=100):
     return images
 
 
+def get_positive_scores(clf, X):
+    if hasattr(clf, 'decision_function'):
+        return clf.decision_function(X)
+    if hasattr(clf, 'predict_proba'):
+        return clf.predict_proba(X)[:, 1]
+    return clf.predict(X)
+
+
+def operating_point_metrics(y_true, scores, target_fpr):
+    clean_scores = scores[y_true == 0]
+    threshold = np.quantile(clean_scores, 1.0 - target_fpr, method='higher')
+    y_pred = (scores >= threshold).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+    achieved_fpr = fp / max(fp + tn, 1)
+    return {
+        'target_fpr': float(target_fpr),
+        'threshold': float(threshold),
+        'achieved_fpr': float(achieved_fpr),
+        'precision': float(precision_score(y_true, y_pred, zero_division=0)),
+        'recall': float(recall_score(y_true, y_pred, zero_division=0)),
+        'tn': int(tn),
+        'fp': int(fp),
+        'fn': int(fn),
+        'tp': int(tp),
+    }
+
+
+def evaluate_detector(clf, X, y, cv):
+    scores = np.zeros(len(y), dtype=float)
+    preds = np.zeros(len(y), dtype=int)
+    for train_idx, test_idx in cv.split(X, y):
+        model = clone(clf)
+        model.fit(X[train_idx], y[train_idx])
+        scores[test_idx] = get_positive_scores(model, X[test_idx])
+        preds[test_idx] = model.predict(X[test_idx])
+
+    op_points = {
+        '0.1%': operating_point_metrics(y, scores, 0.001),
+        '1%': operating_point_metrics(y, scores, 0.01),
+        '5%': operating_point_metrics(y, scores, 0.05),
+    }
+    return {
+        'auc_mean': float(roc_auc_score(y, scores)),
+        'auc_std': 0.0,
+        'acc_mean': float(accuracy_score(y, preds)),
+        'acc_std': 0.0,
+        'operating_points': op_points,
+    }
+
+
 # ================================================================
 print("=" * 70, flush=True)
 print("STRONGER DETECTION EXPERIMENT", flush=True)
 print("=" * 70, flush=True)
 t0 = time.time()
 
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 vae = StegoVAE(device='cpu', image_size=IMG_SIZE)
 N_IMAGES = 30  # 30 clean + 30 stego = 60 samples
 images = make_test_images(N_IMAGES)
@@ -209,10 +305,11 @@ for eps in EPSILONS:
         # Clean round-trip
         lat_clean = vae.encode(img)
         clean_rt = vae.decode(lat_clean)
+        lat_clean_rt = vae.encode(clean_rt)
 
         # Clean features
-        f_lat = extract_latent_features(vae, clean_rt)
-        f_lat_ext = extract_latent_features_extended(vae, clean_rt)
+        f_lat = latent_features_from_tensor(lat_clean_rt)
+        f_lat_ext = latent_features_extended_from_tensor(lat_clean_rt)
         f_res = extract_pixel_residual_features(clean_rt, clean_rt)  # zero residual
         f_spec = extract_spectral_features(clean_rt, clean_rt)
 
@@ -228,9 +325,10 @@ for eps in EPSILONS:
         bits = torch.randint(0, 2, (20,)).tolist()
         lat_m = steg.encode_message(lat_clean, carriers, bits)
         stego = vae.decode(lat_m)
+        lat_stego_rt = vae.encode(stego)
 
-        f_lat_s = extract_latent_features(vae, stego)
-        f_lat_ext_s = extract_latent_features_extended(vae, stego)
+        f_lat_s = latent_features_from_tensor(lat_stego_rt)
+        f_lat_ext_s = latent_features_extended_from_tensor(lat_stego_rt)
         f_res_s = extract_pixel_residual_features(clean_rt, stego)
         f_spec_s = extract_spectral_features(clean_rt, stego)
 
@@ -261,19 +359,22 @@ for eps in EPSILONS:
         X = feature_map[det_name]
         clf = det_fn()
         try:
-            auc_scores = cross_val_score(clf, X, y, cv=cv, scoring='roc_auc')
-            acc_scores = cross_val_score(clf, X, y, cv=cv, scoring='accuracy')
-            result = {
-                'auc_mean': auc_scores.mean(), 'auc_std': auc_scores.std(),
-                'acc_mean': acc_scores.mean(), 'acc_std': acc_scores.std(),
-            }
+            result = evaluate_detector(clf, X, y, cv)
         except Exception as e:
             print(f"    {det_name}: FAILED ({e})", flush=True)
-            result = {'auc_mean': 0.5, 'auc_std': 0, 'acc_mean': 0.5, 'acc_std': 0}
+            result = {
+                'auc_mean': 0.5,
+                'auc_std': 0,
+                'acc_mean': 0.5,
+                'acc_std': 0,
+                'operating_points': {},
+            }
 
         all_results[(eps, det_name)] = result
+        op_1 = result.get('operating_points', {}).get('1%', {})
         print(f"  {det_name:20s}: AUC={result['auc_mean']:.3f}+-{result['auc_std']:.3f}  "
-              f"Acc={result['acc_mean']:.3f}+-{result['acc_std']:.3f}", flush=True)
+              f"Acc={result['acc_mean']:.3f}+-{result['acc_std']:.3f}  "
+              f"P/R@1%FPR={op_1.get('precision', 0):.3f}/{op_1.get('recall', 0):.3f}", flush=True)
 
 # ================================================================
 # Figure: detection heatmap
@@ -330,5 +431,31 @@ plt.tight_layout()
 plt.savefig(FIG_DIR / 'detection_strength.png', dpi=150, bbox_inches='tight')
 plt.close()
 print(f"  Saved detection_strength.png", flush=True)
+
+rows = []
+serializable = {}
+for (eps, det_name), result in all_results.items():
+    serializable.setdefault(str(eps), {})[det_name] = result
+    for label, op in result.get('operating_points', {}).items():
+        rows.append({
+            'epsilon': eps,
+            'detector': det_name,
+            'auc': result['auc_mean'],
+            'accuracy': result['acc_mean'],
+            'operating_point': label,
+            **op,
+        })
+
+with open(RESULTS_DIR / 'v2_detection_operating_points.csv', 'w', newline='') as f:
+    writer = csv.DictWriter(f, fieldnames=[
+        'epsilon', 'detector', 'auc', 'accuracy',
+        'operating_point', 'target_fpr', 'threshold', 'achieved_fpr',
+        'precision', 'recall', 'tn', 'fp', 'fn', 'tp',
+    ])
+    writer.writeheader()
+    writer.writerows(rows)
+with open(RESULTS_DIR / 'v2_detection_operating_points.json', 'w') as f:
+    json.dump(serializable, f, indent=2)
+print(f"  Saved v2_detection_operating_points.csv/json", flush=True)
 
 print(f"\nDone in {time.time()-t0:.0f}s", flush=True)

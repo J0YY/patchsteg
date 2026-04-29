@@ -1,0 +1,65 @@
+{
+  "config": {
+    "dataset": "cifar10",
+    "image_dir": null,
+    "num_images": 3,
+    "vae_name": "stabilityai/sd-vae-ft-mse",
+    "resolution": 128,
+    "epsilon": 2.0,
+    "num_carriers": 8,
+    "num_trials": 1,
+    "seed": 123,
+    "output_dir": "results/topk_bottomk_smoke",
+    "device": "mps",
+    "carrier_modes": [
+      "topk",
+      "random",
+      "bottomk"
+    ],
+    "save_csv": true,
+    "save_figures": true,
+    "stability_seed": 123,
+    "payload_seed": 456,
+    "direction_seed": 789,
+    "heldout_direction_seed": 987,
+    "num_stability_directions": 2,
+    "num_eval_directions": 2,
+    "heldout_eval": true,
+    "eval_protocol": "heldout_direction"
+  },
+  "by_mode": {
+    "bottomk": {
+      "n": 6,
+      "bit_accuracy_mean": 95.83333333333333,
+      "bit_accuracy_std": 9.316949906249123,
+      "bit_accuracy_ci95": [
+        87.5,
+        100.0
+      ],
+      "psnr_mean": 32.05637133073376,
+      "psnr_std": 2.0895768781475392
+    },
+    "random": {
+      "n": 6,
+      "bit_accuracy_mean": 100.0,
+      "bit_accuracy_std": 0.0,
+      "bit_accuracy_ci95": [
+        100.0,
+        100.0
+      ],
+      "psnr_mean": 31.02065704628683,
+      "psnr_std": 1.5469668650644444
+    },
+    "topk": {
+      "n": 6,
+      "bit_accuracy_mean": 100.0,
+      "bit_accuracy_std": 0.0,
+      "bit_accuracy_ci95": [
+        100.0,
+        100.0
+      ],
+      "psnr_mean": 29.982124191242637,
+      "psnr_std": 1.2804532083635323
+    }
+  }
+}

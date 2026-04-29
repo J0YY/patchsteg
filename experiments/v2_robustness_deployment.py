@@ -2,12 +2,12 @@
 """
 Experiment: Deployment-relevant robustness.
 Tests the channel under realistic distortion chains:
-  1. Heavy JPEG (Q=10, Q=20, Q=30)
-  2. Aggressive resize (75%, 50%, 25% then back)
-  3. Crop + pad (center crop 80%, 60%)
-  4. Distortion chains: JPEG->resize->JPEG
-  5. Screenshot simulation (resize + JPEG + slight color shift)
-  6. Re-encoding through the VAE (simulating a safety pipeline)
+  1. PNG->JPEG Q70->PNG roundtrip
+  2. Social-media-style downscale to max edge 1024 + JPEG Q80
+  3. Screenshot simulation
+  4. Additive noise sigma=0.10
+  5. Re-encoding through the VAE (simulating a safety pipeline)
+The older JPEG Q10 stress test is retained as an appendix-only baseline.
 """
 import sys, os
 os.environ['PYTHONUNBUFFERED'] = '1'
@@ -23,12 +23,15 @@ from PIL import Image, ImageFilter, ImageEnhance
 from pathlib import Path
 import time
 import io
+import json
+import csv
 
 from core.vae import StegoVAE
 from core.steganography import PatchSteg
 from core.metrics import compute_psnr, bit_accuracy
 
 FIG_DIR = Path(__file__).resolve().parent.parent / 'paper' / 'figures'
+RESULTS_DIR = Path(__file__).resolve().parent.parent / 'results'
 IMG_SIZE = 256
 
 torch.manual_seed(42)
@@ -46,6 +49,14 @@ def resize_attack(img, scale):
     w, h = img.size
     small = img.resize((int(w * scale), int(h * scale)), Image.BILINEAR)
     return small.resize((w, h), Image.BILINEAR)
+
+
+def social_media_downscale(img, max_edge=1024, quality=80):
+    w, h = img.size
+    scale = min(1.0, max_edge / max(w, h))
+    if scale < 1.0:
+        img = img.resize((int(w * scale), int(h * scale)), Image.BILINEAR)
+    return jpeg_compress(img, quality)
 
 
 def center_crop_pad(img, crop_frac):
@@ -117,6 +128,8 @@ print("DEPLOYMENT ROBUSTNESS EXPERIMENT", flush=True)
 print("=" * 70, flush=True)
 t0 = time.time()
 
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 vae = StegoVAE(device='cpu', image_size=IMG_SIZE)
 images = make_test_images(10)
 print(f"Created {len(images)} test images", flush=True)
@@ -124,50 +137,54 @@ print(f"Created {len(images)} test images", flush=True)
 # Define distortion attacks
 ATTACKS = [
     ("None", lambda img: img),
-    ("JPEG Q=50", lambda img: jpeg_compress(img, 50)),
-    ("JPEG Q=30", lambda img: jpeg_compress(img, 30)),
-    ("JPEG Q=10", lambda img: jpeg_compress(img, 10)),
-    ("Resize 75%", lambda img: resize_attack(img, 0.75)),
-    ("Resize 50%", lambda img: resize_attack(img, 0.50)),
-    ("Resize 25%", lambda img: resize_attack(img, 0.25)),
-    ("Crop 80%", lambda img: center_crop_pad(img, 0.80)),
-    ("Crop 60%", lambda img: center_crop_pad(img, 0.60)),
-    ("Noise σ=0.02", lambda img: add_noise(img, 0.02)),
-    ("Noise σ=0.05", lambda img: add_noise(img, 0.05)),
-    ("Noise σ=0.10", lambda img: add_noise(img, 0.10)),
-    ("Blur r=1", lambda img: img.filter(ImageFilter.GaussianBlur(1))),
-    ("Blur r=2", lambda img: img.filter(ImageFilter.GaussianBlur(2))),
+    ("JPEG Q70 roundtrip", lambda img: jpeg_compress(img, 70)),
+    ("Social downscale+Q80", lambda img: social_media_downscale(img, 1024, 80)),
     ("Screenshot sim", screenshot_sim),
+    ("Noise sigma=0.10", lambda img: add_noise(img, 0.10)),
     ("VAE re-encode", lambda img: vae_reencode(img, vae)),
-    ("JPEG->Resize->JPEG", lambda img: jpeg_compress(resize_attack(jpeg_compress(img, 75), 0.75), 75)),
-    ("JPEG->Noise->JPEG", lambda img: jpeg_compress(add_noise(jpeg_compress(img, 75), 0.02), 75)),
+    ("Appendix stress: JPEG Q10", lambda img: jpeg_compress(img, 10)),
 ]
 
 all_results = {}
+rows = []
 
 for eps in [2.0, 5.0]:
     steg = PatchSteg(seed=42, epsilon=eps)
     print(f"\n--- epsilon = {eps} ---", flush=True)
 
+    cases = []
+    for i, img in enumerate(images):
+        lat_clean = vae.encode(img)
+        carriers, _ = steg.select_carriers_by_stability(vae, img, n_carriers=20, test_eps=eps)
+        torch.manual_seed(42 + i)
+        bits = torch.randint(0, 2, (20,)).tolist()
+        lat_m = steg.encode_message(lat_clean, carriers, bits)
+        stego = vae.decode(lat_m)
+        cases.append({
+            'image': img,
+            'lat_clean': lat_clean,
+            'carriers': carriers,
+            'bits': bits,
+            'stego': stego,
+        })
+
     for atk_name, atk_fn in ATTACKS:
         accs = []
-        for i, img in enumerate(images):
-            lat = vae.encode(img)
-            carriers, _ = steg.select_carriers_by_stability(vae, img, n_carriers=20, test_eps=eps)
-            torch.manual_seed(42 + i)
-            bits = torch.randint(0, 2, (20,)).tolist()
-            lat_m = steg.encode_message(lat, carriers, bits)
-            stego = vae.decode(lat_m)
-
+        for i, case in enumerate(cases):
             # Apply attack
-            attacked = atk_fn(stego)
+            attacked = atk_fn(case['stego'])
 
             # Decode
-            lat_clean = vae.encode(img)
             lat_recv = vae.encode(attacked)
-            rec, _ = steg.decode_message(lat_clean, lat_recv, carriers)
-            acc = bit_accuracy(bits, rec)
+            rec, _ = steg.decode_message(case['lat_clean'], lat_recv, case['carriers'])
+            acc = bit_accuracy(case['bits'], rec)
             accs.append(acc)
+            rows.append({
+                'epsilon': eps,
+                'attack': atk_name,
+                'image_index': i,
+                'bit_accuracy': acc,
+            })
 
         mean_acc = np.mean(accs)
         std_acc = np.std(accs)
@@ -216,5 +233,19 @@ plt.tight_layout()
 plt.savefig(FIG_DIR / 'deployment_robustness.png', dpi=150, bbox_inches='tight')
 plt.close()
 print(f"  Saved deployment_robustness.png", flush=True)
+
+serializable = {}
+for (eps, atk_name), vals in all_results.items():
+    serializable.setdefault(str(eps), {})[atk_name] = vals
+
+with open(RESULTS_DIR / 'v2_robustness_realistic.csv', 'w', newline='') as f:
+    writer = csv.DictWriter(f, fieldnames=[
+        'epsilon', 'attack', 'image_index', 'bit_accuracy',
+    ])
+    writer.writeheader()
+    writer.writerows(rows)
+with open(RESULTS_DIR / 'v2_robustness_realistic.json', 'w') as f:
+    json.dump(serializable, f, indent=2)
+print(f"  Saved v2_robustness_realistic.csv/json", flush=True)
 
 print(f"\nDone in {time.time()-t0:.0f}s", flush=True)

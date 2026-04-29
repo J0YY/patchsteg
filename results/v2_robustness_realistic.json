@@ -1,0 +1,62 @@
+{
+  "2.0": {
+    "None": {
+      "mean": 99.5,
+      "std": 1.5
+    },
+    "JPEG Q70 roundtrip": {
+      "mean": 99.0,
+      "std": 2.0
+    },
+    "Social downscale+Q80": {
+      "mean": 99.0,
+      "std": 2.0
+    },
+    "Screenshot sim": {
+      "mean": 97.0,
+      "std": 4.58257569495584
+    },
+    "Noise sigma=0.10": {
+      "mean": 87.5,
+      "std": 11.884864324004713
+    },
+    "VAE re-encode": {
+      "mean": 99.5,
+      "std": 1.5
+    },
+    "Appendix stress: JPEG Q10": {
+      "mean": 81.0,
+      "std": 15.297058540778355
+    }
+  },
+  "5.0": {
+    "None": {
+      "mean": 99.0,
+      "std": 2.0
+    },
+    "JPEG Q70 roundtrip": {
+      "mean": 99.0,
+      "std": 2.0
+    },
+    "Social downscale+Q80": {
+      "mean": 98.5,
+      "std": 3.2015621187164243
+    },
+    "Screenshot sim": {
+      "mean": 98.5,
+      "std": 3.2015621187164243
+    },
+    "Noise sigma=0.10": {
+      "mean": 98.5,
+      "std": 2.29128784747792
+    },
+    "VAE re-encode": {
+      "mean": 99.0,
+      "std": 2.0
+    },
+    "Appendix stress: JPEG Q10": {
+      "mean": 96.5,
+      "std": 3.905124837953327
+    }
+  }
+}

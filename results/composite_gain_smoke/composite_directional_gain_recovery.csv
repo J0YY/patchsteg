@@ -1,0 +1,10 @@
+mode,bit_accuracy,psnr,eval_direction_seed,image_id,image_index,epsilon,k,seed,vae_name,resolution
+top_gain,100.0,31.592942832520762,50321,cifar10_00000_cat,0,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+random,100.0,30.90298756858422,50321,cifar10_00000_cat,0,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+bottom_gain,100.0,31.16537240075028,50321,cifar10_00000_cat,0,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+top_gain,100.0,31.887760118150695,50321,cifar10_00001_ship,1,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+random,100.0,33.02582466658195,50321,cifar10_00001_ship,1,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+bottom_gain,100.0,33.6264779782896,50321,cifar10_00001_ship,1,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+top_gain,100.0,34.756352980276134,50321,cifar10_00002_ship,2,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+random,100.0,33.660125273806095,50321,cifar10_00002_ship,2,2.0,4,321,stabilityai/sd-vae-ft-mse,128
+bottom_gain,100.0,34.675386102643024,50321,cifar10_00002_ship,2,2.0,4,321,stabilityai/sd-vae-ft-mse,128

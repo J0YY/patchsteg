@@ -1,0 +1,45 @@
+{
+  "config": {
+    "image_dir": null,
+    "dataset": "cifar10",
+    "num_images": 3,
+    "vae_name": "stabilityai/sd-vae-ft-mse",
+    "resolution": 128,
+    "epsilon": 2.0,
+    "num_positions": "12",
+    "num_directions": 1,
+    "k": 4,
+    "seed": 321,
+    "device": "mps",
+    "output_dir": "results/composite_gain_smoke"
+  },
+  "gain_vs_existing_stability": {
+    "pearson": {
+      "r": 0.7054419082987243,
+      "p": 1.549594471038906e-06,
+      "n": 36
+    },
+    "spearman": {
+      "r": -0.1752895752895753,
+      "p": 0.3065138308455492,
+      "n": 36
+    }
+  },
+  "recovery_by_mode": {
+    "bottom_gain": {
+      "n": 3,
+      "bit_accuracy_mean": 100.0,
+      "bit_accuracy_std": 0.0
+    },
+    "random": {
+      "n": 3,
+      "bit_accuracy_mean": 100.0,
+      "bit_accuracy_std": 0.0
+    },
+    "top_gain": {
+      "n": 3,
+      "bit_accuracy_mean": 100.0,
+      "bit_accuracy_std": 0.0
+    }
+  }
+}

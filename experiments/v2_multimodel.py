@@ -21,14 +21,21 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from pathlib import Path
 import time
+import json
+import csv
 from diffusers import AutoencoderKL
 from torchvision import transforms
 
 from core.steganography import PatchSteg
-from core.metrics import compute_psnr, bit_accuracy
+from core.metrics import compute_quality_metrics, bit_accuracy
 
 FIG_DIR = Path(__file__).resolve().parent.parent / 'paper' / 'figures'
+RESULTS_DIR = Path(__file__).resolve().parent.parent / 'results'
 IMG_SIZE = 256
+DEVICE = os.environ.get(
+    'PATCHSTEG_DEVICE',
+    'mps' if torch.backends.mps.is_available() else 'cpu',
+)
 
 torch.manual_seed(42)
 np.random.seed(42)
@@ -108,7 +115,7 @@ def test_model(vae, images, model_name, epsilons=[2.0, 5.0], n_carriers=20):
     results = []
     for eps in epsilons:
         steg = PatchSteg(seed=42, epsilon=eps)
-        accs, psnrs = [], []
+        accs, psnrs, ssims, lpipss = [], [], [], []
         for i, img in enumerate(images):
             lat = vae.encode(img)
             carriers, _ = steg.select_carriers_by_stability(vae, img, n_carriers=n_carriers, test_eps=eps)
@@ -116,24 +123,33 @@ def test_model(vae, images, model_name, epsilons=[2.0, 5.0], n_carriers=20):
             bits = torch.randint(0, 2, (n_carriers,)).tolist()
             lat_m = steg.encode_message(lat, carriers, bits)
             st = vae.decode(lat_m)
-            psnr = compute_psnr(img, st)
+            quality = compute_quality_metrics(img, st, device=DEVICE)
             lat_re = vae.encode(st)
             rec, _ = steg.decode_message(lat, lat_re, carriers)
             acc = bit_accuracy(bits, rec)
             accs.append(acc)
-            psnrs.append(psnr)
+            psnrs.append(quality['psnr'])
+            ssims.append(quality['ssim'])
+            lpipss.append(quality['lpips'])
         mean_acc = np.mean(accs)
         std_acc = np.std(accs)
         mean_psnr = np.mean(psnrs)
         std_psnr = np.std(psnrs)
+        mean_ssim = np.mean(ssims)
+        std_ssim = np.std(ssims)
+        mean_lpips = np.mean(lpipss)
+        std_lpips = np.std(lpipss)
         results.append({
             'model': model_name, 'eps': eps,
             'acc_mean': mean_acc, 'acc_std': std_acc,
             'psnr_mean': mean_psnr, 'psnr_std': std_psnr,
+            'ssim_mean': mean_ssim, 'ssim_std': std_ssim,
+            'lpips_mean': mean_lpips, 'lpips_std': std_lpips,
             'n_images': len(images)
         })
         print(f"  {model_name:30s} eps={eps}: acc={mean_acc:.1f}+-{std_acc:.1f}% "
-              f"psnr={mean_psnr:.1f}+-{std_psnr:.1f}dB (n={len(images)})", flush=True)
+              f"psnr={mean_psnr:.1f}+-{std_psnr:.1f}dB "
+              f"ssim={mean_ssim:.4f} lpips={mean_lpips:.4f} (n={len(images)})", flush=True)
     return results
 
 
@@ -143,8 +159,11 @@ print("MULTI-MODEL GENERALITY EXPERIMENT", flush=True)
 print("=" * 70, flush=True)
 t0 = time.time()
 
+FIG_DIR.mkdir(parents=True, exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 images = make_test_images(10)
 print(f"Created {len(images)} test images", flush=True)
+print(f"Using device: {DEVICE}", flush=True)
 
 # Model list — try each, skip if download fails
 MODEL_IDS = [
@@ -174,7 +193,7 @@ all_results = []
 for model_id, model_name in MODEL_IDS:
     print(f"\n--- Testing {model_name} ---", flush=True)
     try:
-        vae = GenericVAE(model_id, device='cpu', image_size=IMG_SIZE)
+        vae = GenericVAE(model_id, device=DEVICE, image_size=IMG_SIZE)
         results = test_model(vae, images, model_name)
         all_results.extend(results)
         del vae
@@ -192,11 +211,11 @@ print("="*70, flush=True)
 
 if len(MODEL_IDS) >= 2:
     cross_results = []
-    vae_a = GenericVAE(MODEL_IDS[0][0], device='cpu', image_size=IMG_SIZE)
-    vae_b = GenericVAE(MODEL_IDS[1][0], device='cpu', image_size=IMG_SIZE)
+    vae_a = GenericVAE(MODEL_IDS[0][0], device=DEVICE, image_size=IMG_SIZE)
+    vae_b = GenericVAE(MODEL_IDS[1][0], device=DEVICE, image_size=IMG_SIZE)
 
     steg = PatchSteg(seed=42, epsilon=5.0)
-    cross_accs = []
+    cross_accs, cross_psnrs, cross_ssims, cross_lpipss = [], [], [], []
     for i, img in enumerate(images[:5]):
         lat_a = vae_a.encode(img)
         carriers, _ = steg.select_carriers_by_stability(vae_a, img, n_carriers=20, test_eps=5.0)
@@ -204,24 +223,33 @@ if len(MODEL_IDS) >= 2:
         bits = torch.randint(0, 2, (20,)).tolist()
         lat_m = steg.encode_message(lat_a, carriers, bits)
         stego = vae_a.decode(lat_m)
+        quality = compute_quality_metrics(img, stego, device=DEVICE)
         # Receiver uses MODEL B
         lat_b_clean = vae_b.encode(img)
         lat_b_recv = vae_b.encode(stego)
         rec, _ = steg.decode_message(lat_b_clean, lat_b_recv, carriers)
         acc = bit_accuracy(bits, rec)
         cross_accs.append(acc)
+        cross_psnrs.append(quality['psnr'])
+        cross_ssims.append(quality['ssim'])
+        cross_lpipss.append(quality['lpips'])
 
     print(f"  Cross-model ({MODEL_IDS[0][1]} -> {MODEL_IDS[1][1]}): "
-          f"acc={np.mean(cross_accs):.1f}+-{np.std(cross_accs):.1f}%", flush=True)
+          f"acc={np.mean(cross_accs):.1f}+-{np.std(cross_accs):.1f}% "
+          f"psnr={np.mean(cross_psnrs):.1f}dB ssim={np.mean(cross_ssims):.4f} "
+          f"lpips={np.mean(cross_lpipss):.4f}", flush=True)
     all_results.append({
         'model': f"Cross: {MODEL_IDS[0][1]}->{MODEL_IDS[1][1]}",
         'eps': 5.0,
         'acc_mean': np.mean(cross_accs), 'acc_std': np.std(cross_accs),
-        'psnr_mean': 0, 'psnr_std': 0, 'n_images': len(cross_accs)
+        'psnr_mean': np.mean(cross_psnrs), 'psnr_std': np.std(cross_psnrs),
+        'ssim_mean': np.mean(cross_ssims), 'ssim_std': np.std(cross_ssims),
+        'lpips_mean': np.mean(cross_lpipss), 'lpips_std': np.std(cross_lpipss),
+        'n_images': len(cross_accs)
     })
 
     # Also test reverse
-    cross_accs_rev = []
+    cross_accs_rev, cross_psnrs_rev, cross_ssims_rev, cross_lpipss_rev = [], [], [], []
     for i, img in enumerate(images[:5]):
         lat_b = vae_b.encode(img)
         carriers, _ = steg.select_carriers_by_stability(vae_b, img, n_carriers=20, test_eps=5.0)
@@ -229,19 +257,28 @@ if len(MODEL_IDS) >= 2:
         bits = torch.randint(0, 2, (20,)).tolist()
         lat_m = steg.encode_message(lat_b, carriers, bits)
         stego = vae_b.decode(lat_m)
+        quality = compute_quality_metrics(img, stego, device=DEVICE)
         lat_a_clean = vae_a.encode(img)
         lat_a_recv = vae_a.encode(stego)
         rec, _ = steg.decode_message(lat_a_clean, lat_a_recv, carriers)
         acc = bit_accuracy(bits, rec)
         cross_accs_rev.append(acc)
+        cross_psnrs_rev.append(quality['psnr'])
+        cross_ssims_rev.append(quality['ssim'])
+        cross_lpipss_rev.append(quality['lpips'])
 
     print(f"  Cross-model ({MODEL_IDS[1][1]} -> {MODEL_IDS[0][1]}): "
-          f"acc={np.mean(cross_accs_rev):.1f}+-{np.std(cross_accs_rev):.1f}%", flush=True)
+          f"acc={np.mean(cross_accs_rev):.1f}+-{np.std(cross_accs_rev):.1f}% "
+          f"psnr={np.mean(cross_psnrs_rev):.1f}dB ssim={np.mean(cross_ssims_rev):.4f} "
+          f"lpips={np.mean(cross_lpipss_rev):.4f}", flush=True)
     all_results.append({
         'model': f"Cross: {MODEL_IDS[1][1]}->{MODEL_IDS[0][1]}",
         'eps': 5.0,
         'acc_mean': np.mean(cross_accs_rev), 'acc_std': np.std(cross_accs_rev),
-        'psnr_mean': 0, 'psnr_std': 0, 'n_images': len(cross_accs_rev)
+        'psnr_mean': np.mean(cross_psnrs_rev), 'psnr_std': np.std(cross_psnrs_rev),
+        'ssim_mean': np.mean(cross_ssims_rev), 'ssim_std': np.std(cross_ssims_rev),
+        'lpips_mean': np.mean(cross_lpipss_rev), 'lpips_std': np.std(cross_lpipss_rev),
+        'n_images': len(cross_accs_rev)
     })
 
     del vae_a, vae_b
@@ -308,5 +345,29 @@ plt.tight_layout()
 plt.savefig(FIG_DIR / 'multimodel.png', dpi=150, bbox_inches='tight')
 plt.close()
 print(f"  Saved multimodel.png", flush=True)
+
+serializable_results = []
+for row in all_results:
+    clean = {}
+    for key, value in row.items():
+        if isinstance(value, (np.floating, np.integer)):
+            clean[key] = value.item()
+        else:
+            clean[key] = value
+    serializable_results.append(clean)
+
+with open(RESULTS_DIR / 'v2_multimodel_metrics.csv', 'w', newline='') as f:
+    writer = csv.DictWriter(f, fieldnames=[
+        'model', 'eps', 'n_images',
+        'acc_mean', 'acc_std',
+        'psnr_mean', 'psnr_std',
+        'ssim_mean', 'ssim_std',
+        'lpips_mean', 'lpips_std',
+    ])
+    writer.writeheader()
+    writer.writerows(serializable_results)
+with open(RESULTS_DIR / 'v2_multimodel_metrics.json', 'w') as f:
+    json.dump(serializable_results, f, indent=2)
+print(f"  Saved v2_multimodel_metrics.csv/json", flush=True)
 
 print(f"\nDone in {time.time()-t0:.0f}s", flush=True)
