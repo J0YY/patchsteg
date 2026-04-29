@@ -1,0 +1,4 @@
+dataset,image_id,image_index,class_index,class_name,epsilon,k,seed,resolution,vae_name,device,bit_accuracy,psnr,ssim,lpips
+caltech101,caltech101_00280_Faces,0,0,Faces,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cpu,100.0,25.622622575009323,0.8022281317464341,
+caltech101,caltech101_00479_Faces_easy,1,1,Faces_easy,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cpu,100.0,27.235766481987916,0.7872463372824982,
+caltech101,caltech101_00974_Leopards,2,2,Leopards,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cpu,100.0,23.64515989127319,0.5987763864354204,

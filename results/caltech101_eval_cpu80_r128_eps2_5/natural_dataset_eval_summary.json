@@ -1,0 +1,65 @@
+{
+  "config": {
+    "dataset": "caltech101",
+    "image_dir": null,
+    "num_images": 80,
+    "resolution": 128,
+    "epsilon": [
+      2.0,
+      5.0
+    ],
+    "num_carriers": 20,
+    "seed": 42,
+    "device": "cpu",
+    "output_dir": "results/caltech101_eval_cpu80_r128_eps2_5",
+    "dataset_root": "/tmp/patchsteg_datasets",
+    "skip_lpips": true,
+    "bootstrap": 1000
+  },
+  "dataset_note": "Caltech101 was chosen as a CPU-feasible native-image dataset with many more categories and higher native resolution than CIFAR-10.",
+  "results": {
+    "2.0": {
+      "n_images": 80,
+      "bit_accuracy_mean": 99.8125,
+      "bit_accuracy_std": 0.9499177595981665,
+      "bit_accuracy_ci95": [
+        99.6234375,
+        100.0
+      ],
+      "psnr_mean": 21.602594471614914,
+      "psnr_std": 2.2413040998093834,
+      "psnr_ci95": [
+        21.118218014846352,
+        22.09559133236979
+      ],
+      "ssim_mean": 0.7037855198569403,
+      "ssim_std": 0.1158138401306037,
+      "ssim_ci95": [
+        0.6768502870980918,
+        0.729398076138766
+      ]
+    },
+    "5.0": {
+      "n_images": 80,
+      "bit_accuracy_mean": 99.25,
+      "bit_accuracy_std": 2.1065374432940898,
+      "bit_accuracy_ci95": [
+        98.8109375,
+        99.6875
+      ],
+      "psnr_mean": 16.67093037899327,
+      "psnr_std": 1.155167728741226,
+      "psnr_ci95": [
+        16.38749826165258,
+        16.92856192179971
+      ],
+      "ssim_mean": 0.587343796538548,
+      "ssim_std": 0.1163219221667189,
+      "ssim_ci95": [
+        0.5622682306262677,
+        0.6111966002267987
+      ]
+    }
+  },
+  "runtime_seconds": 365.39543175697327
+}

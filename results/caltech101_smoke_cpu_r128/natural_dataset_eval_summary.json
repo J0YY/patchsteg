@@ -1,0 +1,43 @@
+{
+  "config": {
+    "dataset": "caltech101",
+    "image_dir": null,
+    "num_images": 3,
+    "resolution": 128,
+    "epsilon": [
+      2.0
+    ],
+    "num_carriers": 8,
+    "seed": 42,
+    "device": "cpu",
+    "output_dir": "results/caltech101_smoke_cpu_r128",
+    "dataset_root": "/tmp/patchsteg_datasets",
+    "skip_lpips": true,
+    "bootstrap": 100
+  },
+  "dataset_note": "Caltech101 was chosen as a CPU-feasible native-image dataset with many more categories and higher native resolution than CIFAR-10.",
+  "results": {
+    "2.0": {
+      "n_images": 3,
+      "bit_accuracy_mean": 100.0,
+      "bit_accuracy_std": 0.0,
+      "bit_accuracy_ci95": [
+        100.0,
+        100.0
+      ],
+      "psnr_mean": 25.501182982756813,
+      "psnr_std": 1.468372024442,
+      "psnr_ci95": [
+        23.64515989127319,
+        27.235766481987913
+      ],
+      "ssim_mean": 0.7294169518214509,
+      "ssim_std": 0.09257908883625282,
+      "ssim_ci95": [
+        0.5987763864354204,
+        0.7972342002584555
+      ]
+    }
+  },
+  "runtime_seconds": 585.1348838806152
+}

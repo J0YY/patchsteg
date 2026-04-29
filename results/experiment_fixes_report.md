@@ -589,3 +589,125 @@ Determinism check:
 
 - Re-ran the same command with output directory `results/composite_gain_smoke_repeat`.
 - `diff -u` on both gain CSV and recovery CSV returned no differences.
+
+## Non-CIFAR Natural-Image Dataset Evaluation
+
+Script:
+
+- `experiments/natural_dataset_eval.py`
+
+Purpose:
+
+- Adds a CPU-feasible non-CIFAR evaluation on native object images.
+- This is meant to strengthen the paper beyond CIFAR-only evidence by testing the same PatchSteg encode/decode path on a larger, variable-resolution natural-image corpus.
+
+Dataset research and choice:
+
+- Selected Caltech101 for the CPU-bound run. The official CaltechDATA record describes the dataset as pictures of objects from 101 categories, roughly 40 to 800 images per category, roughly 300 x 200 pixels, and a 137.4 MB archive: https://data.caltech.edu/records/mzrjq-6wc02
+- TensorFlow Datasets lists Caltech101 as roughly 9k images, 101 object classes plus background clutter, variable image sizes with typical edge lengths of 200-300 pixels, and a 131.05 MiB download: https://www.tensorflow.org/datasets/catalog/caltech101
+- I did not choose COCO, LAION, or ImageNet-style options for this pass because the user constraint was CPU-only with about 12 hours available. Those datasets are better paper-scale follow-ups, but the download and wall-clock cost are much larger than needed for an immediate robustness check.
+- I did not choose STL10 as the primary result because it is closer to CIFAR-style small images. It remains supported by the script as `--dataset stl10`.
+
+Implementation details:
+
+- Loads Caltech101 through `torchvision.datasets.Caltech101`.
+- Uses stratified sampling over class labels so the selected subset covers many classes instead of taking a contiguous slice.
+- Reuses existing PatchSteg components: `StegoVAE`, `PatchSteg.select_carriers_by_stability`, `PatchSteg.encode_message`, `PatchSteg.decode_message`, `bit_accuracy`, `compute_psnr`, and `compute_ssim_pil`.
+- LPIPS was skipped for these CPU runs to keep runtime bounded.
+
+Main run command:
+
+```bash
+python experiments/natural_dataset_eval.py \
+  --dataset caltech101 \
+  --num_images 202 \
+  --resolution 128 \
+  --epsilon 2.0 5.0 \
+  --num_carriers 20 \
+  --device cpu \
+  --output_dir results/caltech101_eval_cpu202_r128_eps2_5 \
+  --skip_lpips \
+  --bootstrap 1000
+```
+
+Main run artifacts:
+
+- `results/caltech101_eval_cpu202_r128_eps2_5/natural_dataset_eval.csv`
+- `results/caltech101_eval_cpu202_r128_eps2_5/natural_dataset_eval_summary.json`
+- `results/caltech101_eval_cpu202_r128_eps2_5/natural_dataset_eval_summary.png`
+- `results/caltech101_eval_cpu202_r128_eps2_5/natural_dataset_eval_accuracy_hist.png`
+
+Main run result:
+
+| epsilon | n images | k | bit acc mean | bit acc 95% CI | PSNR mean | PSNR 95% CI | SSIM mean | SSIM 95% CI |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2.0 | 202 | 20 | 99.53% | [99.16, 99.80] | 21.54 dB | [21.21, 21.87] | 0.707 | [0.690, 0.724] |
+| 5.0 | 202 | 20 | 99.48% | [99.23, 99.70] | 16.61 dB | [16.43, 16.79] | 0.589 | [0.572, 0.606] |
+
+Runtime:
+
+- `930.8s` for 202 images x 2 epsilon values on CPU after the dataset was cached.
+- The one-time Caltech101 download took most of the earlier smoke-test runtime.
+
+Smoke test command:
+
+```bash
+python experiments/natural_dataset_eval.py \
+  --dataset caltech101 \
+  --num_images 3 \
+  --resolution 128 \
+  --epsilon 2.0 \
+  --num_carriers 8 \
+  --device cpu \
+  --output_dir results/caltech101_smoke_cpu_r128 \
+  --skip_lpips \
+  --bootstrap 100
+```
+
+Smoke test artifacts:
+
+- `results/caltech101_smoke_cpu_r128/natural_dataset_eval.csv`
+- `results/caltech101_smoke_cpu_r128/natural_dataset_eval_summary.json`
+- `results/caltech101_smoke_cpu_r128/natural_dataset_eval_summary.png`
+- `results/caltech101_smoke_cpu_r128/natural_dataset_eval_accuracy_hist.png`
+
+Smoke test result:
+
+| epsilon | n images | k | bit acc mean | PSNR mean | SSIM mean |
+|---|---:|---:|---:|---:|---:|
+| 2.0 | 3 | 8 | 100.00% | 25.50 dB | 0.729 |
+
+Additional sanity run:
+
+```bash
+python experiments/natural_dataset_eval.py \
+  --dataset caltech101 \
+  --num_images 80 \
+  --resolution 128 \
+  --epsilon 2.0 5.0 \
+  --num_carriers 20 \
+  --device cpu \
+  --output_dir results/caltech101_eval_cpu80_r128_eps2_5 \
+  --skip_lpips \
+  --bootstrap 1000
+```
+
+Additional sanity artifacts:
+
+- `results/caltech101_eval_cpu80_r128_eps2_5/natural_dataset_eval.csv`
+- `results/caltech101_eval_cpu80_r128_eps2_5/natural_dataset_eval_summary.json`
+- `results/caltech101_eval_cpu80_r128_eps2_5/natural_dataset_eval_summary.png`
+- `results/caltech101_eval_cpu80_r128_eps2_5/natural_dataset_eval_accuracy_hist.png`
+
+Additional sanity result:
+
+| epsilon | n images | k | bit acc mean | bit acc 95% CI | PSNR mean | SSIM mean |
+|---|---:|---:|---:|---:|---:|---:|
+| 2.0 | 80 | 20 | 99.81% | [99.62, 100.00] | 21.60 dB | 0.704 |
+| 5.0 | 80 | 20 | 99.25% | [98.81, 99.69] | 16.67 dB | 0.587 |
+
+Interpretation:
+
+- PatchSteg recovery remains very high on Caltech101 under the same VAE round-trip protocol, which is useful because these images are not CIFAR-sized 32 x 32 inputs and cover many object categories.
+- Epsilon 5.0 does not materially improve recovery because accuracy is already saturated at epsilon 2.0; it mainly increases visible distortion, reflected in lower PSNR and SSIM.
+- For the paper, the strongest use is a robustness table: CIFAR result plus Caltech101 native-image result, with Caltech101 framed as a CPU-feasible natural-image stress test.
