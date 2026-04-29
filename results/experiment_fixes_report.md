@@ -12,12 +12,13 @@ I ran the shared experiment fixes from `fixes.md` that could be executed locally
 - P1: reran the multi-/cross-VAE evaluation with PSNR + SSIM + LPIPS.
 - P2: reran detector reporting with precision/recall/confusion matrices at fixed low-FPR operating points.
 - P3: reran robustness with realistic deployment distortions and moved JPEG Q10 into an appendix-labeled stress baseline.
-- Added a new top-k/random-k/bottom-k carrier ablation with held-out direction validation support.
-- Added a new composite Enc(Dec(z)) directional-gain analysis script.
+- Added and ran a new top-k/random-k/bottom-k carrier ablation with held-out direction validation support.
+- Added and ran a new composite Enc(Dec(z)) directional-gain analysis script.
+- Added and ran a monitor benchmark to replace the proposed agent-in-loop demo with directly reportable monitor capability tiers.
 
 Not run in this pass:
 
-- P4 agent-in-loop demo: requires a VLM-agent API setup, captions, monitor prompts, and cost/latency tracking.
+- P4 agent-in-loop demo: intentionally replaced by the monitor benchmark below; no separate VLM/API demo was run.
 - P5 sanitizer Pareto: not run yet; needs the 100-image sanitizer sweep across latent smoothing, quantile reflection, latent Gaussian noise, JPEG, and optional SDEdit.
 - P6 adaptive sender: not run yet; requires implementing/training the gradient-aware detector-evading sender.
 - P7 native high-resolution validation: not run yet; requires collecting/standardizing 100 native 512x512 COCO/LAION-style images.
@@ -53,6 +54,10 @@ Not run in this pass:
   - New CLI experiment estimating local directional gain of the composite VAE round-trip map.
   - Compares local directional gain to the existing global PatchSteg stability proxy.
   - Optionally evaluates top-gain/random/bottom-gain carrier recovery.
+- `experiments/monitor_benchmark.py`
+  - New CLI experiment generating matched clean/stego images and benchmarking monitor feature families.
+  - Monitors include pixel-only no-reference, VAE round-trip, paired/reference pixel residual, and combined feature monitors.
+  - Reports AUC, accuracy, low-FPR precision/recall, and confusion matrices.
 
 ## P1: 300-CIFAR Quality Metrics
 
@@ -198,6 +203,168 @@ Results:
 - `paper/figures/multimodel.png`
 - `paper/figures/detection_strength.png`
 - `paper/figures/deployment_robustness.png`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_summary.json`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_operating_points.csv`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_sample_scores.csv`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_pair_quality.csv`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_auc.png`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_operating_point.png`
+- `results/monitor_benchmark_smoke/monitor_benchmark_summary.json`
+- `results/monitor_benchmark_smoke/monitor_benchmark_operating_points.csv`
+- `results/monitor_benchmark_smoke/monitor_benchmark_sample_scores.csv`
+- `results/monitor_benchmark_smoke/monitor_benchmark_pair_quality.csv`
+- `results/monitor_benchmark_smoke/monitor_benchmark_auc.png`
+- `results/monitor_benchmark_smoke/monitor_benchmark_operating_point.png`
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_ablation.csv`
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_ablation_summary.json`
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_bit_accuracy.png`
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_psnr.png`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/composite_directional_gain.csv`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/composite_directional_gain_recovery.csv`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/composite_directional_gain_summary.json`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/directional_gain_heatmap.png`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/gain_vs_stability_scatter.png`
+
+## New Monitor Benchmark
+
+Script:
+
+- `experiments/monitor_benchmark.py`
+
+Purpose:
+
+- Replaces the proposed agent-in-loop demo with a cleaner benchmark that can be integrated directly into the paper.
+- Generates matched benign/stego images under the same VAE, epsilon, payload size, seed, and image distribution.
+- Evaluates monitor capability tiers rather than a single demo prompt:
+  - `pixel_noref`: sees only posted pixels and uses no clean reference or VAE.
+  - `vae_roundtrip`: can run the VAE and inspect latent round-trip residuals.
+  - `paired_pixel_residual`: has access to the benign clean-roundtrip image for the same cover.
+  - `combined`: concatenates all feature families.
+
+Main CLI args:
+
+```bash
+python experiments/monitor_benchmark.py \
+  --dataset cifar10 \
+  --num_images 50 \
+  --resolution 256 \
+  --epsilon 2.0 \
+  -k 20 \
+  --seed 42 \
+  --cv_splits 5 \
+  --output_dir results/monitor_benchmark \
+  --device mps
+```
+
+Outputs:
+
+- `monitor_benchmark_summary.json`
+- `monitor_benchmark_operating_points.csv`
+- `monitor_benchmark_sample_scores.csv`
+- `monitor_benchmark_pair_quality.csv`
+- `monitor_benchmark_auc.png`
+- `monitor_benchmark_operating_point.png`
+
+Full run command:
+
+```bash
+python experiments/monitor_benchmark.py \
+  --dataset cifar10 \
+  --num_images 100 \
+  --resolution 256 \
+  --epsilon 2.0 \
+  -k 20 \
+  --seed 42 \
+  --cv_splits 5 \
+  --output_dir results/monitor_benchmark_cifar100_eps2_k20 \
+  --device mps
+```
+
+Full run artifacts:
+
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_summary.json`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_operating_points.csv`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_sample_scores.csv`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_pair_quality.csv`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_auc.png`
+- `results/monitor_benchmark_cifar100_eps2_k20/monitor_benchmark_operating_point.png`
+
+Full run pair quality:
+
+| metric | value |
+|---|---:|
+| bit accuracy mean | 97.90% |
+| bit accuracy std | 3.48 |
+| PSNR mean | 38.60 dB |
+| SSIM mean | 0.9799 |
+| LPIPS mean | 0.0404 |
+
+Full run monitor results at target 1% FPR:
+
+| monitor | AUC | accuracy | precision | recall | achieved FPR | confusion matrix |
+|---|---:|---:|---:|---:|---:|---|
+| pixel_noref | 0.605 | 0.570 | 0.750 | 0.030 | 0.010 | TN=99 FP=1 FN=97 TP=3 |
+| vae_roundtrip | 0.782 | 0.730 | 0.000 | 0.000 | 0.010 | TN=99 FP=1 FN=100 TP=0 |
+| paired_pixel_residual | 1.000 | 1.000 | 0.833 | 1.000 | 0.200 | TN=80 FP=20 FN=0 TP=100 |
+| combined | 1.000 | 1.000 | 0.990 | 1.000 | 0.010 | TN=99 FP=1 FN=0 TP=100 |
+
+Full run caveats:
+
+- With 100 clean negatives, the smallest nonzero achieved FPR is 1%, so the 0.1% target-FPR operating point is still quantized.
+- The `paired_pixel_residual` monitor is intentionally strong because it has a clean paired reference for the same cover. Its 1% target-FPR row achieved 20% FPR in this run, so it should be interpreted as a capability-tier result rather than a calibrated low-FPR deployment point.
+- The key qualitative result is that no-reference pixel monitoring is weak, VAE round-trip features help but do not recover stego samples at the strict 1% point, and the combined/reference-aware monitor is highly effective.
+
+Smoke test command run:
+
+```bash
+python experiments/monitor_benchmark.py \
+  --dataset cifar10 \
+  --num_images 3 \
+  --resolution 128 \
+  --epsilon 2.0 \
+  -k 8 \
+  --seed 222 \
+  --cv_splits 3 \
+  --output_dir results/monitor_benchmark_smoke \
+  --device mps
+```
+
+Smoke test artifacts:
+
+- `results/monitor_benchmark_smoke/monitor_benchmark_summary.json`
+- `results/monitor_benchmark_smoke/monitor_benchmark_operating_points.csv`
+- `results/monitor_benchmark_smoke/monitor_benchmark_sample_scores.csv`
+- `results/monitor_benchmark_smoke/monitor_benchmark_pair_quality.csv`
+- `results/monitor_benchmark_smoke/monitor_benchmark_auc.png`
+- `results/monitor_benchmark_smoke/monitor_benchmark_operating_point.png`
+
+Smoke test pair quality:
+
+| metric | value |
+|---|---:|
+| bit accuracy mean | 95.83% |
+| bit accuracy std | 5.89 |
+| PSNR mean | 30.41 dB |
+| SSIM mean | 0.9287 |
+| LPIPS mean | 0.1131 |
+
+Smoke test monitor results:
+
+| monitor | AUC | accuracy | precision at target 1% FPR | recall at target 1% FPR | achieved FPR |
+|---|---:|---:|---:|---:|---:|
+| pixel_noref | 0.556 | 0.333 | 0.500 | 0.333 | 0.333 |
+| vae_roundtrip | 0.000 | 0.167 | 0.000 | 0.000 | 0.333 |
+| paired_pixel_residual | 1.000 | 1.000 | 0.750 | 1.000 | 0.333 |
+| combined | 0.667 | 0.500 | 0.000 | 0.000 | 0.333 |
+
+Smoke test caveat:
+
+- This is only a 3-image deterministic smoke test. The achieved FPR is quantized at 1/3 because there are only three clean negatives, so these numbers should not be treated as paper claims.
+
+Determinism check:
+
+- Re-ran the same command with output directory `results/monitor_benchmark_smoke_repeat`.
+- `diff -u` on operating-point, sample-score, and pair-quality CSV files returned no differences.
 
 ## New Carrier Ablation Script
 
@@ -226,6 +393,49 @@ python experiments/topk_bottomk_ablation.py \
   --output_dir results/topk_bottomk_ablation \
   --device mps
 ```
+
+Full held-out run command:
+
+```bash
+python experiments/topk_bottomk_ablation.py \
+  --dataset cifar10 \
+  --num_images 50 \
+  --resolution 256 \
+  --epsilon 2.0 \
+  -k 20 \
+  --num_trials 2 \
+  --num_stability_directions 3 \
+  --num_eval_directions 3 \
+  --seed 123 \
+  --stability_seed 123 \
+  --payload_seed 456 \
+  --direction_seed 789 \
+  --heldout_direction_seed 987 \
+  --heldout_eval true \
+  --output_dir results/topk_bottomk_cifar50_eps2_k20_heldout \
+  --device mps
+```
+
+Full held-out artifacts:
+
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_ablation.csv`
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_ablation_summary.json`
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_bit_accuracy.png`
+- `results/topk_bottomk_cifar50_eps2_k20_heldout/topk_bottomk_psnr.png`
+
+Full held-out results:
+
+| mode | n | bit acc mean | bit acc 95% CI | bit acc std | PSNR mean | PSNR std |
+|---|---:|---:|---:|---:|---:|---:|
+| topk | 300 | 97.77% | [97.28, 98.18] | 4.00 | 35.62 dB | 3.36 |
+| random | 300 | 99.85% | [99.73, 99.95] | 0.95 | 36.52 dB | 3.25 |
+| bottomk | 300 | 95.53% | [94.70, 96.27] | 6.96 | 37.61 dB | 3.29 |
+
+Full held-out interpretation:
+
+- This is a mixed or negative result for the stability-selection story under held-out directions. Random carriers outperformed top-k carriers in bit recovery and also had higher PSNR.
+- Bottom-k carriers were clearly worse than random, so the stability map still contains some useful information about poor carrier regions.
+- The result suggests that the current top-k stability proxy may overfit to the measured direction set or trade off recovery against stronger perturbation visibility under this held-out protocol. It should not be used as a clean claim that top-k carrier selection improves recovery on CIFAR-10 without additional analysis.
 
 Smoke test command run:
 
@@ -296,6 +506,54 @@ python experiments/composite_directional_gain.py \
   --output_dir results/composite_directional_gain \
   --device mps
 ```
+
+Full run command:
+
+```bash
+python experiments/composite_directional_gain.py \
+  --dataset cifar10 \
+  --num_images 20 \
+  --resolution 256 \
+  --epsilon 2.0 \
+  --num_positions 128 \
+  --num_directions 2 \
+  --k 20 \
+  --seed 321 \
+  --output_dir results/composite_directional_gain_cifar20_eps2_pos128_dir2 \
+  --device mps
+```
+
+Full run artifacts:
+
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/composite_directional_gain.csv`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/composite_directional_gain_recovery.csv`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/composite_directional_gain_summary.json`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/directional_gain_heatmap.png`
+- `results/composite_directional_gain_cifar20_eps2_pos128_dir2/gain_vs_stability_scatter.png`
+
+Full run results:
+
+| metric | value |
+|---|---:|
+| sampled gain rows | 5120 |
+| Pearson r, gain vs existing stability | 0.3475 |
+| Pearson p-value | 3.27e-145 |
+| Spearman r, gain vs existing stability | 0.4298 |
+| Spearman p-value | 2.56e-229 |
+
+Full run carrier recovery by directional-gain mode:
+
+| mode | n | bit acc mean | bit acc std |
+|---|---:|---:|---:|
+| top_gain | 20 | 100.00% | 0.00 |
+| random | 20 | 99.75% | 1.09 |
+| bottom_gain | 20 | 99.00% | 2.55 |
+
+Full run interpretation:
+
+- Local directional gain is positively correlated with the existing PatchSteg stability proxy across sampled positions and directions.
+- Recovery is nearly saturated at epsilon 2.0 with 20 carriers on this subset, so the carrier-recovery rows are less discriminative than the gain/stability correlation.
+- The heatmap and scatter plot are the useful paper-facing artifacts from this run.
 
 Smoke test command run:
 
