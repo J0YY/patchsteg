@@ -4,6 +4,181 @@ Date: 2026-04-29
 
 Scope: current `paper/main.tex`, local `icml2026/` template, current experiment log, and the ICML 2026 Mechanistic Interpretability Workshop CFP.
 
+## Pre-ICML Fix List To Maximize Acceptance Odds
+
+No set of edits can guarantee acceptance. Workshop decisions depend on reviewer assignment, submission pool, fit, and taste. The closest practical target is to remove obvious rejection reasons, make the core claim easy to review positively, and ensure the evidence is disciplined. The current ICML-styled manuscript is plausible for the ICML 2026 Mechanistic Interpretability Workshop, but it should still be tightened before submission.
+
+Use this section as the submission checklist. Items marked P0 are acceptance-critical; P1 items materially improve the odds; P2 items are useful if time remains.
+
+### P0: Remove Likely Rejection Triggers
+
+- **Add a "Hypotheses and Evidence" table to the main text.**
+  - Why: the MechInterp CFP explicitly values falsifiable hypotheses and careful evidence boundaries.
+  - What to add: a compact table with rows such as:
+    - H1: local VAE latent perturbations survive decode-reencode for some positions.
+    - H2: stability is spatially non-uniform.
+    - H3: stability is content-dependent.
+    - H4: reconstruction error does not explain carrier quality.
+    - H5: local geometry partially predicts carrier quality.
+  - Columns: evidence, dataset/protocol, support level, limitation.
+  - Done when: a reviewer can identify the scientific claim and evidence without reconstructing it from scattered paragraphs.
+
+- **Add a "Protocol Summary" table for all headline numbers.**
+  - Why: the paper currently mixes results from different sample sizes, resolutions, and detectors. That is manageable only if transparent.
+  - Include: dataset, number of images, resolution, VAE, carriers, epsilon, carrier-selection method, detector/features if applicable, metric, confidence interval if available.
+  - Done when: no headline result appears in the paper without an associated protocol.
+
+- **Strengthen the limitation language around security claims.**
+  - Replace any remaining broad phrasing like "monitoring failure", "covert channel", or "survives deployment" with bounded phrasing.
+  - Suggested phrasing: "under this shared-cover VAE setting", "under evaluated detector families", "in our current distortion suite", "pilot evidence".
+  - Done when: a skeptical reviewer cannot reasonably say the paper claims broad undetectability or deployable steganography.
+
+- **Make the shared-cover assumption impossible to miss.**
+  - Current baseline PatchSteg requires a clean cover latent or clean round-trip baseline.
+  - Put this in the method, limitations, and maybe a small threat-model paragraph.
+  - Explain that this is acceptable because the paper studies latent stability, not a complete real-world covert messaging system.
+  - Done when: the assumption is presented as part of the probe design, not as a buried caveat.
+
+- **Remove or further demote small-n extension claims from the main narrative.**
+  - CDF, adaptive encoding, sanitizer, and defense results should not drive acceptance unless re-run at scale.
+  - Keep them in one short "Exploratory Extensions" paragraph or appendix.
+  - Avoid "first", "provable", "undetectable", "SOTA", "universal", and "defeats" in the main text.
+  - Done when: the main paper can stand entirely on latent-stability results without relying on small-n extensions.
+
+- **Verify double-blind safety.**
+  - Search the manuscript and appendix for names, GitHub usernames, HuggingFace usernames, hackathon names, file paths that reveal identity, acknowledgements, and teammate references.
+  - Do not link directly to the named GitHub repo in the blind PDF. Use an anonymized code archive if submitting code.
+  - Done when: `pdftotext paper/main.pdf - | rg "Joy|J0YY|PatchSteg repo|GitHub|Hackathon|Wang|Team"` returns nothing identifying, except generic non-identifying terms if deliberately included.
+
+- **Create an anonymized reproducibility package or code note.**
+  - The CFP says reviewers will consider reproducibility and code/data access.
+  - Use an anonymized GitHub mirror or anonymous.4open.science archive.
+  - Include scripts for the headline figures/tables only, not every experimental prototype.
+  - Done when: a reviewer can reproduce at least the stability map, random-vs-stable carrier comparison, 300-image evaluation summary, and multi-VAE figure.
+
+### P1: Make The Paper Scientifically Stronger
+
+- **Run one clean random-vs-stability carrier ablation on the same natural-image protocol.**
+  - Current evidence says stability selection helps, but some examples are synthetic or old-protocol.
+  - Target: 100-300 CIFAR-10 images, same VAE, same resolution, same K, same epsilon values.
+  - Report random carriers vs stability-selected carriers with bootstrap CIs.
+  - Acceptance impact: high. This directly validates the core method as an interpretability probe.
+
+- **Re-run or expand the Jacobian analysis so it is not the weakest link.**
+  - Current result is suggestive: carrier Jacobian norms 2050 vs 1684 with `p=0.058`.
+  - Better target: compute local directional gain for the actual perturbation direction, or approximate the Jacobian of `Enc o Dec` rather than decoder-only sensitivity.
+  - Report effect size, confidence interval, and correlation with stability.
+  - Acceptance impact: high. This turns the paper from "interesting empirical phenomenon" into stronger mechanistic evidence.
+
+- **Add a small predictive model for carrier stability.**
+  - Features: entropy, high-frequency energy, local variance, decoder sensitivity, baseline drift, channel statistics.
+  - Predict: per-position or per-image bit accuracy/stability.
+  - Report held-out correlation or ranking accuracy.
+  - Acceptance impact: high. Interpretability reviewers like when observations become predictive.
+
+- **Normalize the detector story.**
+  - Current manuscript wisely narrows detectability, but reviewers may still ask why numbers differ across experiments.
+  - Add one table or appendix section: detector family, dataset, n, attack epsilon, AUC.
+  - Explicitly state that stronger pixel/spectral detectors can detect low-epsilon variants in some protocols.
+  - Acceptance impact: medium-high. Prevents security reviewers from objecting.
+
+- **Add native high-resolution images if feasible.**
+  - CIFAR-10 upscaling is a known weakness.
+  - Even 50-100 native 256 or 512 images from COCO/ImageNet/LAION-style sources would help.
+  - Report whether the content-dependence trends hold.
+  - Acceptance impact: medium-high. This reduces "artifact of upscaled CIFAR" skepticism.
+
+- **Add SSIM and LPIPS alongside PSNR for visual quality.**
+  - PSNR alone is not enough for image quality claims.
+  - Keep the language conservative: "low distortion by PSNR/SSIM/LPIPS", not "imperceptible" unless human-tested.
+  - Acceptance impact: medium. Helps with vision/steganography reviewer expectations.
+
+- **Improve references and related work.**
+  - Add more direct citations on mechanistic interpretability of generative models, autoencoder latent geometry, representation interventions, and image steganalysis.
+  - Make sure every "closest prior" statement is supported.
+  - Acceptance impact: medium. Prevents reviewer complaints that the paper is isolated from the field.
+
+### P2: Polish And Presentation
+
+- **Use the two remaining ICML pages strategically.**
+  - The current PDF is 6 pages. The long-paper limit is 8 ICML pages excluding references/appendix.
+  - Add at most 1-1.5 pages of high-signal material:
+    - Hypotheses/evidence table.
+    - Protocol summary table.
+    - One stronger ablation or Jacobian result.
+  - Leave a little white space rather than filling every inch with lower-quality extensions.
+
+- **Tighten figure captions.**
+  - Captions should say what the result means, not just what is plotted.
+  - Include sample size and protocol in captions where possible.
+  - Remove any "hero" phrasing from the scientific manuscript.
+
+- **Add a short "Why this is mechanistic interpretability" paragraph.**
+  - State: the intervention is on an internal latent state; recovery measures whether that intervention is preserved by the model computation; spatial/content variation reveals structure of the representation.
+  - Place it near the end of the introduction or start of method.
+
+- **Add an ethics/safety note.**
+  - Because the paper studies covert channels, include responsible disclosure style language:
+    - the evaluated channel has limiting assumptions;
+    - code release should avoid turnkey misuse where possible;
+    - the purpose is monitoring and interpretability.
+  - Keep it concise and factual.
+
+- **Clean the appendix.**
+  - Put all small-n tables and extra attack/defense variants in appendix.
+  - Label them "pilot" or "exploratory".
+  - Do not expect reviewers to read the appendix; the main paper must be self-contained.
+
+- **Run final PDF compliance checks.**
+  - `./build.sh`
+  - `pdfinfo paper/main.pdf`
+  - `pdffonts paper/main.pdf`
+  - `pdftotext paper/main.pdf - | rg "AUTHORERR|Title Suppressed|Missing|J0YY|Hackathon|Wang|Team"`
+  - Confirm main body is within page limit and one PDF includes references/appendix if submitting appendix.
+
+### Suggested Minimum Submission Patch
+
+If time is very limited, do only these before submitting:
+
+1. Add a main-text "Hypotheses and Evidence" table.
+2. Add a main-text or appendix "Protocol Summary" table.
+3. Add an anonymized reproducibility/code note.
+4. Strengthen shared-cover and detector-scope caveats.
+5. Add one clean random-vs-stability ablation on a consistent natural-image protocol.
+6. Rebuild and re-check anonymity.
+
+This minimum patch is the highest-return path. It directly addresses the workshop's evaluation criteria without expanding the paper into another unfocused systems draft.
+
+### Reviewer Objections To Preempt
+
+- **"This is steganography, not interpretability."**
+  - Preempt by defining PatchSteg as an intervention probe of `Enc o Dec`, with bit recovery as the observable.
+
+- **"The method assumes the receiver has the clean cover."**
+  - Preempt by stating this is a shared-cover probe assumption, not a claim of complete deployment realism.
+
+- **"The security claims are overstated."**
+  - Preempt by bounding every detector and robustness claim to the evaluated protocol.
+
+- **"The Jacobian mechanism is not established."**
+  - Preempt by presenting current Jacobian evidence as partial and adding stronger composite-Jacobian analysis if possible.
+
+- **"CIFAR upscaling may create artifacts."**
+  - Preempt by acknowledging it and adding native-resolution images if possible.
+
+- **"Small-n results should not support big claims."**
+  - Preempt by moving small-n extension results to appendix and labeling them pilot evidence.
+
+### Acceptance Probability After Fixes
+
+Estimated probabilities are subjective, but useful for prioritization:
+
+- Current ICML-styled version: approximately 45-60%.
+- After the minimum submission patch above: approximately 60-70%.
+- After P0 plus the most important P1 experiments: approximately 70-80%.
+
+These are not guarantees. They assume the final submission is anonymous, formatted correctly, reproducible enough for reviewers, and clearly framed as mechanistic interpretability rather than a broad security claim.
+
 ## Change Log: ICML-Styled Regeneration
 
 Implemented after the initial review:
