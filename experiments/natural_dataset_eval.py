@@ -191,8 +191,11 @@ def load_dataset(args):
 def quality_metrics(clean, stego, device, skip_lpips):
     metrics = {
         "psnr": float(compute_psnr(clean, stego)),
-        "ssim": float(compute_ssim_pil(clean, stego)),
     }
+    try:
+        metrics["ssim"] = float(compute_ssim_pil(clean, stego))
+    except ImportError:
+        metrics["ssim"] = None
     metrics["lpips"] = None if skip_lpips else float(compute_lpips_pil(clean, stego, device=device))
     return metrics
 
