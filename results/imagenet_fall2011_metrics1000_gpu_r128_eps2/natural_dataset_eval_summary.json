@@ -1,0 +1,49 @@
+{
+  "config": {
+    "dataset": "caltech101",
+    "image_dir": "/datasets/imagenet-full-fall2011/images",
+    "num_images": 1000,
+    "resolution": 128,
+    "epsilon": [
+      2.0
+    ],
+    "num_carriers": 20,
+    "seed": 42,
+    "device": "cuda",
+    "output_dir": "results/imagenet_fall2011_metrics1000_gpu_r128_eps2",
+    "dataset_root": "/tmp/patchsteg_datasets",
+    "skip_lpips": false,
+    "bootstrap": 1000
+  },
+  "dataset_note": "Image directory evaluation from /datasets/imagenet-full-fall2011/images.",
+  "results": {
+    "2.0": {
+      "n_images": 1000,
+      "bit_accuracy_mean": 99.78,
+      "bit_accuracy_std": 1.11874930167576,
+      "bit_accuracy_ci95": [
+        99.71,
+        99.845
+      ],
+      "psnr_mean": 21.56756918533989,
+      "psnr_std": 2.417819684320361,
+      "psnr_ci95": [
+        21.41061650522697,
+        21.717095526271937
+      ],
+      "ssim_mean": 0.6749796096915704,
+      "ssim_std": 0.1237464999437611,
+      "ssim_ci95": [
+        0.6678339131038338,
+        0.682630743447078
+      ],
+      "lpips_mean": 0.16081015184521674,
+      "lpips_std": 0.04596213575695799,
+      "lpips_ci95": [
+        0.15804033468868584,
+        0.1636021941469051
+      ]
+    }
+  },
+  "runtime_seconds": 112.29534244537354
+}

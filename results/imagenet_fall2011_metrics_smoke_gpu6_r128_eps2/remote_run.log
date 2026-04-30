@@ -1,0 +1,25 @@
+srun: job 628010 queued and waiting for resources
+srun: job 628010 has been allocated resources
+[remote_run] applying setup...
+=================================
+Running on: c2-g4-13
+Working directory: /users/joy/patchsteg
+Command: python experiments/natural_dataset_eval.py --image_dir /datasets/imagenet-full-fall2011/images --num_images 6 --resolution 128 --epsilon 2.0 --num_carriers 8 --device cuda --output_dir results/imagenet_fall2011_metrics_smoke_gpu6_r128_eps2 --bootstrap 100
+Started at: 2026-04-30T11:08:28+01:00
+=================================
+Natural-image dataset evaluation
+  dataset=caltech101 image_dir=/datasets/imagenet-full-fall2011/images
+  device=cuda resolution=128 n=6
+  loaded 6 images
+
+--- epsilon=2.0 ---
+  image 0/6
+/users/joy/miniconda3/envs/safesae/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/users/joy/miniconda3/envs/safesae/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=AlexNet_Weights.IMAGENET1K_V1`. You can also use `weights=AlexNet_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+
+Wrote results/imagenet_fall2011_metrics_smoke_gpu6_r128_eps2/natural_dataset_eval.csv
+Wrote results/imagenet_fall2011_metrics_smoke_gpu6_r128_eps2/natural_dataset_eval_summary.json
+Wrote figures in results/imagenet_fall2011_metrics_smoke_gpu6_r128_eps2
+Done in 7.2s
