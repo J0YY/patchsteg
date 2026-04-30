@@ -74,28 +74,27 @@ def load_image_dir(image_dir, num_images, resolution, seed):
     class_dirs = sorted(p for p in root.iterdir() if p.is_dir())
     if class_dirs:
         # ImageNet-style datasets can have millions of files. Sample per class
-        # without recursively materializing the whole image list.
+        # without recursively materializing the whole image list. We choose
+        # class folders first, then inspect only the selected folders.
         class_to_idx = {p.name: idx for idx, p in enumerate(class_dirs)}
-        per_class_paths = []
-        for class_dir in class_dirs:
-            paths = sorted(p for p in class_dir.iterdir() if p.is_file() and p.suffix.lower() in suffixes)
-            if paths:
-                order = rng.permutation(len(paths))
-                per_class_paths.append((class_dir.name, [paths[i] for i in order]))
-
-        cursor = {class_name: 0 for class_name, _ in per_class_paths}
+        class_order = list(rng.permutation(len(class_dirs)))
         while len(rows) < num_images:
             made_progress = False
-            for class_name, paths in per_class_paths:
+            for class_idx in class_order:
                 if len(rows) >= num_images:
                     break
-                idx = cursor[class_name]
-                if idx < len(paths):
-                    path = paths[idx]
-                    cursor[class_name] += 1
-                    made_progress = True
-                    rows.append((path, class_name, class_to_idx[class_name]))
+                class_dir = class_dirs[class_idx]
+                paths = sorted(
+                    p for p in class_dir.iterdir()
+                    if p.is_file() and p.suffix.lower() in suffixes
+                )
+                if not paths:
+                    continue
+                rows.append((paths[int(rng.randint(0, len(paths)))], class_dir.name, class_to_idx[class_dir.name]))
+                made_progress = True
             if not made_progress:
+                break
+            if len(rows) < len(class_order):
                 break
     else:
         paths = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in suffixes)
