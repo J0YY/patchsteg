@@ -711,3 +711,116 @@ Interpretation:
 - PatchSteg recovery remains very high on Caltech101 under the same VAE round-trip protocol, which is useful because these images are not CIFAR-sized 32 x 32 inputs and cover many object categories.
 - Epsilon 5.0 does not materially improve recovery because accuracy is already saturated at epsilon 2.0; it mainly increases visible distortion, reflected in lower PSNR and SSIM.
 - For the paper, the strongest use is a robustness table: CIFAR result plus Caltech101 native-image result, with Caltech101 framed as a CPU-feasible natural-image stress test.
+
+## ImageNet-Family 1000-Image GPU Evaluation
+
+Question:
+
+- The Caltech101 paper-facing result above evaluated `202` images.
+- We then tested a larger ImageNet-family subset using the Athena GPU launcher specified in `/Users/joyyang/CURSOR_REMOTE_SRUN_MANUAL_GENERIC.md`.
+
+Dataset found on cluster:
+
+- `/datasets/imagenet-full-fall2011/images`
+- This is an ImageNet-style synset-folder tree with `21841` top-level synset directories.
+- This is not the canonical ILSVRC2012 50k validation split. It is still a useful ImageNet-family natural-image stress test, and the run below samples `1000` synset folders with one random image per sampled synset.
+
+Implementation changes needed:
+
+- Updated `experiments/natural_dataset_eval.py` so `--image_dir` supports recursive/ImageFolder-style class subdirectories.
+- Avoided exhaustive recursive scans over ImageNet-scale trees by sampling class folders first and only listing files inside selected folders.
+- Made SSIM optional for this script because the remote `safesae` environment did not have `scikit-image`; the ImageNet run records bit accuracy and PSNR, with SSIM/LPIPS omitted.
+
+Remote setup:
+
+- Remote project directory: `~/patchsteg`
+- Remote launcher: `~/remote_srun.sh`
+- Slurm allocation used by the successful runs: `gpu`, `gpu:1`, `8` CPUs, `32G` memory.
+- Successful jobs ran on: `c1-g4-04`
+
+Dry run command:
+
+```bash
+~/remote_srun.sh --dry-run ~/patchsteg \
+  python experiments/natural_dataset_eval.py \
+    --image_dir /datasets/imagenet-full-fall2011/images \
+    --num_images 1000 \
+    --resolution 128 \
+    --epsilon 2.0 \
+    --num_carriers 20 \
+    --device cuda \
+    --output_dir results/imagenet_fall2011_subset1000_gpu_r128_eps2 \
+    --skip_lpips \
+    --bootstrap 1000
+```
+
+Main run command:
+
+```bash
+~/remote_srun.sh --github-test --git-pull --log ~/patchsteg \
+  python experiments/natural_dataset_eval.py \
+    --image_dir /datasets/imagenet-full-fall2011/images \
+    --num_images 1000 \
+    --resolution 128 \
+    --epsilon 2.0 \
+    --num_carriers 20 \
+    --device cuda \
+    --output_dir results/imagenet_fall2011_subset1000_gpu_r128_eps2 \
+    --skip_lpips \
+    --bootstrap 1000
+```
+
+Main run artifacts:
+
+- `results/imagenet_fall2011_subset1000_gpu_r128_eps2/natural_dataset_eval.csv`
+- `results/imagenet_fall2011_subset1000_gpu_r128_eps2/natural_dataset_eval_summary.json`
+- `results/imagenet_fall2011_subset1000_gpu_r128_eps2/natural_dataset_eval_summary.png`
+- `results/imagenet_fall2011_subset1000_gpu_r128_eps2/natural_dataset_eval_accuracy_hist.png`
+- `results/imagenet_fall2011_subset1000_gpu_r128_eps2/remote_run.log`
+
+Main run result:
+
+| source | n images | epsilon | k | bit acc mean | bit acc 95% CI | PSNR mean | PSNR 95% CI | SSIM | LPIPS | runtime |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|
+| ImageNet full Fall 2011 synset subset | 1000 | 2.0 | 20 | 99.80% | [99.72, 99.87] | 21.56 dB | [21.40, 21.71] | skipped, dependency absent | skipped | 173.1s |
+
+Smoke test command:
+
+```bash
+~/remote_srun.sh --github-test --git-pull --log ~/patchsteg \
+  python experiments/natural_dataset_eval.py \
+    --image_dir /datasets/imagenet-full-fall2011/images \
+    --num_images 6 \
+    --resolution 128 \
+    --epsilon 2.0 \
+    --num_carriers 8 \
+    --device cuda \
+    --output_dir results/imagenet_fall2011_smoke_gpu6_r128_eps2 \
+    --skip_lpips \
+    --bootstrap 100
+```
+
+Smoke test artifacts:
+
+- `results/imagenet_fall2011_smoke_gpu6_r128_eps2/natural_dataset_eval.csv`
+- `results/imagenet_fall2011_smoke_gpu6_r128_eps2/natural_dataset_eval_summary.json`
+- `results/imagenet_fall2011_smoke_gpu6_r128_eps2/natural_dataset_eval_summary.png`
+- `results/imagenet_fall2011_smoke_gpu6_r128_eps2/natural_dataset_eval_accuracy_hist.png`
+- `results/imagenet_fall2011_smoke_gpu6_r128_eps2/remote_run.log`
+
+Smoke test result:
+
+| source | n images | epsilon | k | bit acc mean | PSNR mean | runtime |
+|---|---:|---:|---:|---:|---:|---:|
+| ImageNet full Fall 2011 synset subset | 6 | 2.0 | 8 | 100.00% | 24.58 dB | 6.2s |
+
+Failed attempts and fixes:
+
+- First ImageNet smoke attempt was stopped because the initial `ImageFolder` loader recursively enumerated the full ImageNet tree before sampling.
+- Second smoke attempt was stopped because it still inspected all synset folders before selecting a tiny subset.
+- Third smoke attempt loaded images correctly but failed because `skimage` was absent in the remote environment. The script now treats SSIM as optional for this experiment path.
+
+Interpretation:
+
+- This is the strongest non-CIFAR robustness result so far: `1000` ImageNet-family natural images, sampled across `1000` synset folders, with `99.80%` mean bit recovery at epsilon `2.0`.
+- The result is more paper-useful than the 202-image Caltech101 run for the “larger dataset” claim, but it should be described precisely as an ImageNet full Fall 2011 synset subset unless we later obtain the canonical ILSVRC2012 validation split.

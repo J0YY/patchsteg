@@ -1,0 +1,120 @@
+srun: job 628004 queued and waiting for resources
+srun: job 628004 has been allocated resources
+[remote_run] applying setup...
+=================================
+Running on: c1-g4-04
+Working directory: /users/joy/patchsteg
+Command: python experiments/natural_dataset_eval.py --image_dir /datasets/imagenet-full-fall2011/images --num_images 1000 --resolution 128 --epsilon 2.0 --num_carriers 20 --device cuda --output_dir results/imagenet_fall2011_subset1000_gpu_r128_eps2 --skip_lpips --bootstrap 1000
+Started at: 2026-04-30T10:24:18+01:00
+=================================
+Natural-image dataset evaluation
+  dataset=caltech101 image_dir=/datasets/imagenet-full-fall2011/images
+  device=cuda resolution=128 n=1000
+  loaded 1000 images
+
+--- epsilon=2.0 ---
+  image 0/1000
+  image 10/1000
+  image 20/1000
+  image 30/1000
+  image 40/1000
+  image 50/1000
+  image 60/1000
+  image 70/1000
+  image 80/1000
+  image 90/1000
+  image 100/1000
+  image 110/1000
+  image 120/1000
+  image 130/1000
+  image 140/1000
+  image 150/1000
+  image 160/1000
+  image 170/1000
+  image 180/1000
+  image 190/1000
+  image 200/1000
+  image 210/1000
+  image 220/1000
+  image 230/1000
+  image 240/1000
+  image 250/1000
+  image 260/1000
+  image 270/1000
+  image 280/1000
+  image 290/1000
+  image 300/1000
+  image 310/1000
+  image 320/1000
+  image 330/1000
+  image 340/1000
+  image 350/1000
+  image 360/1000
+  image 370/1000
+  image 380/1000
+  image 390/1000
+  image 400/1000
+  image 410/1000
+  image 420/1000
+  image 430/1000
+  image 440/1000
+  image 450/1000
+  image 460/1000
+  image 470/1000
+  image 480/1000
+  image 490/1000
+  image 500/1000
+  image 510/1000
+  image 520/1000
+  image 530/1000
+  image 540/1000
+  image 550/1000
+  image 560/1000
+  image 570/1000
+  image 580/1000
+  image 590/1000
+  image 600/1000
+  image 610/1000
+  image 620/1000
+  image 630/1000
+  image 640/1000
+  image 650/1000
+  image 660/1000
+  image 670/1000
+  image 680/1000
+  image 690/1000
+  image 700/1000
+  image 710/1000
+  image 720/1000
+  image 730/1000
+  image 740/1000
+  image 750/1000
+  image 760/1000
+  image 770/1000
+  image 780/1000
+  image 790/1000
+  image 800/1000
+  image 810/1000
+  image 820/1000
+  image 830/1000
+  image 840/1000
+  image 850/1000
+  image 860/1000
+  image 870/1000
+  image 880/1000
+  image 890/1000
+  image 900/1000
+  image 910/1000
+  image 920/1000
+  image 930/1000
+  image 940/1000
+  image 950/1000
+  image 960/1000
+  image 970/1000
+  image 980/1000
+  image 990/1000
+
+Wrote results/imagenet_fall2011_subset1000_gpu_r128_eps2/natural_dataset_eval.csv
+Wrote results/imagenet_fall2011_subset1000_gpu_r128_eps2/natural_dataset_eval_summary.json
+Wrote figures in results/imagenet_fall2011_subset1000_gpu_r128_eps2
+Done in 173.1s

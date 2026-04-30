@@ -331,8 +331,12 @@ def main():
     summary = {
         "config": vars(args),
         "dataset_note": (
-            "Caltech101 was chosen as a CPU-feasible native-image dataset with "
-            "many more categories and higher native resolution than CIFAR-10."
+            f"Image directory evaluation from {args.image_dir}."
+            if args.image_dir
+            else (
+                "Caltech101 was chosen as a CPU-feasible native-image dataset with "
+                "many more categories and higher native resolution than CIFAR-10."
+            )
         ),
         "results": summarize(result_rows, args.epsilon, args.seed, args.bootstrap),
         "runtime_seconds": time.time() - t0,

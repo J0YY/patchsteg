@@ -1,0 +1,7 @@
+dataset,image_id,image_index,class_index,class_name,epsilon,k,seed,resolution,vae_name,device,bit_accuracy,psnr,ssim,lpips
+image_dir,n09655213__n09655213_1272,0,14532,n09655213,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cuda,100.0,20.60670231823625,,
+image_dir,n03604763__n03604763_2513,1,7958,n03604763,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cuda,100.0,27.100134466468223,,
+image_dir,n02822762__n02822762_1716,2,4720,n02822762,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cuda,100.0,23.60320675314128,,
+image_dir,n04136510__n04136510_8537,3,10052,n04136510,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cuda,100.0,23.669597716068267,,
+image_dir,n02833403__n02833403_3811,4,4767,n02833403,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cuda,100.0,25.011358376402534,,
+image_dir,n03777754__n03777754_12970,5,8611,n03777754,2.0,8,42,128,stabilityai/sd-vae-ft-mse,cuda,100.0,27.459845759302123,,

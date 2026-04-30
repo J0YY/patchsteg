@@ -1,0 +1,21 @@
+srun: job 628003 queued and waiting for resources
+srun: job 628003 has been allocated resources
+[remote_run] applying setup...
+=================================
+Running on: c1-g4-04
+Working directory: /users/joy/patchsteg
+Command: python experiments/natural_dataset_eval.py --image_dir /datasets/imagenet-full-fall2011/images --num_images 6 --resolution 128 --epsilon 2.0 --num_carriers 8 --device cuda --output_dir results/imagenet_fall2011_smoke_gpu6_r128_eps2 --skip_lpips --bootstrap 100
+Started at: 2026-04-30T10:23:33+01:00
+=================================
+Natural-image dataset evaluation
+  dataset=caltech101 image_dir=/datasets/imagenet-full-fall2011/images
+  device=cuda resolution=128 n=6
+  loaded 6 images
+
+--- epsilon=2.0 ---
+  image 0/6
+
+Wrote results/imagenet_fall2011_smoke_gpu6_r128_eps2/natural_dataset_eval.csv
+Wrote results/imagenet_fall2011_smoke_gpu6_r128_eps2/natural_dataset_eval_summary.json
+Wrote figures in results/imagenet_fall2011_smoke_gpu6_r128_eps2
+Done in 6.2s
