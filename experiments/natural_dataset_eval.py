@@ -67,39 +67,59 @@ def parse_args():
 
 def load_image_dir(image_dir, num_images, resolution, seed):
     root = Path(image_dir).expanduser()
-    paths = sorted(
-        p for p in root.rglob("*")
-        if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-    )
-    if not paths:
+    suffixes = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+    rng = np.random.RandomState(seed)
+    rows = []
+
+    class_dirs = sorted(p for p in root.iterdir() if p.is_dir())
+    if class_dirs:
+        # ImageNet-style datasets can have millions of files. Sample per class
+        # without recursively materializing the whole image list.
+        class_to_idx = {p.name: idx for idx, p in enumerate(class_dirs)}
+        per_class_paths = []
+        for class_dir in class_dirs:
+            paths = sorted(p for p in class_dir.iterdir() if p.is_file() and p.suffix.lower() in suffixes)
+            if paths:
+                order = rng.permutation(len(paths))
+                per_class_paths.append((class_dir.name, [paths[i] for i in order]))
+
+        cursor = {class_name: 0 for class_name, _ in per_class_paths}
+        while len(rows) < num_images:
+            made_progress = False
+            for class_name, paths in per_class_paths:
+                if len(rows) >= num_images:
+                    break
+                idx = cursor[class_name]
+                if idx < len(paths):
+                    path = paths[idx]
+                    cursor[class_name] += 1
+                    made_progress = True
+                    rows.append((path, class_name, class_to_idx[class_name]))
+            if not made_progress:
+                break
+    else:
+        paths = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in suffixes)
+        rows = [(p, "image_dir", -1) for p in paths[:num_images]]
+
+    if not rows:
         raise ValueError(f"No supported image files found under {root}")
 
-    class_names = sorted({p.parent.name for p in paths})
-    class_to_idx = {name: idx for idx, name in enumerate(class_names)}
-    labels = [class_to_idx[p.parent.name] for p in paths]
-    if len(class_names) > 1:
-        indices = stratified_indices(labels, num_images, seed)
-    else:
-        indices = list(range(min(num_images, len(paths))))
-
-    rows = []
-    for image_index, idx in enumerate(indices):
-        path = paths[idx]
-        class_name = path.parent.name if len(class_names) > 1 else "image_dir"
+    output_rows = []
+    for image_index, (path, class_name, class_index) in enumerate(rows):
         img = Image.open(path).convert("RGB").resize((resolution, resolution), Image.BILINEAR)
         try:
             rel = path.relative_to(root).with_suffix("")
             image_id = str(rel).replace(os.sep, "__")
         except ValueError:
             image_id = path.stem
-        rows.append({
+        output_rows.append({
             "image_id": image_id,
-            "class_index": class_to_idx.get(class_name, -1),
+            "class_index": class_index,
             "class_name": class_name,
             "image_index": image_index,
             "image": img,
         })
-    return rows
+    return output_rows
 
 
 def stratified_indices(labels, num_images, seed):
