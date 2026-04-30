@@ -7,11 +7,16 @@ existing CIFAR-10 evaluation. Caltech101 is the default because it has thousands
 of native object images across many categories without the size/cost of COCO or
 LAION-scale downloads.
 
-Example:
+Examples:
   python experiments/natural_dataset_eval.py --dataset caltech101 \
       --num_images 80 --resolution 128 --epsilon 2.0 5.0 \
       --num_carriers 20 --device cpu \
       --output_dir results/caltech101_eval_cpu80_r128
+
+  python experiments/natural_dataset_eval.py --image_dir /path/to/imagenet/val \
+      --num_images 1000 --resolution 128 --epsilon 2.0 \
+      --num_carriers 20 --device cuda \
+      --output_dir results/imagenet1k_val_subset_r128_eps2
 """
 import argparse
 import csv
@@ -39,7 +44,14 @@ from core.vae import StegoVAE
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate PatchSteg on non-CIFAR natural-image datasets.")
     parser.add_argument("--dataset", default="caltech101", choices=["caltech101", "stl10"])
-    parser.add_argument("--image_dir", default=None, help="Optional directory of images; overrides --dataset.")
+    parser.add_argument(
+        "--image_dir",
+        default=None,
+        help=(
+            "Optional directory of images; overrides --dataset. Supports recursive "
+            "ImageFolder-style class subdirectories, e.g. ImageNet val."
+        ),
+    )
     parser.add_argument("--num_images", type=int, default=80)
     parser.add_argument("--resolution", type=int, default=128)
     parser.add_argument("--epsilon", nargs="+", type=float, default=[2.0, 5.0])
@@ -53,15 +65,40 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_image_dir(image_dir, num_images, resolution):
+def load_image_dir(image_dir, num_images, resolution, seed):
+    root = Path(image_dir).expanduser()
     paths = sorted(
-        p for p in Path(image_dir).expanduser().iterdir()
-        if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+        p for p in root.rglob("*")
+        if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
     )
+    if not paths:
+        raise ValueError(f"No supported image files found under {root}")
+
+    class_names = sorted({p.parent.name for p in paths})
+    class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+    labels = [class_to_idx[p.parent.name] for p in paths]
+    if len(class_names) > 1:
+        indices = stratified_indices(labels, num_images, seed)
+    else:
+        indices = list(range(min(num_images, len(paths))))
+
     rows = []
-    for idx, path in enumerate(paths[:num_images]):
+    for image_index, idx in enumerate(indices):
+        path = paths[idx]
+        class_name = path.parent.name if len(class_names) > 1 else "image_dir"
         img = Image.open(path).convert("RGB").resize((resolution, resolution), Image.BILINEAR)
-        rows.append({"image_id": path.stem, "class_index": -1, "class_name": "image_dir", "image": img})
+        try:
+            rel = path.relative_to(root).with_suffix("")
+            image_id = str(rel).replace(os.sep, "__")
+        except ValueError:
+            image_id = path.stem
+        rows.append({
+            "image_id": image_id,
+            "class_index": class_to_idx.get(class_name, -1),
+            "class_name": class_name,
+            "image_index": image_index,
+            "image": img,
+        })
     return rows
 
 
@@ -92,7 +129,7 @@ def stratified_indices(labels, num_images, seed):
 
 def load_dataset(args):
     if args.image_dir:
-        return load_image_dir(args.image_dir, args.num_images, args.resolution)
+        return load_image_dir(args.image_dir, args.num_images, args.resolution, args.seed)
 
     if args.dataset == "caltech101":
         from torchvision.datasets import Caltech101
